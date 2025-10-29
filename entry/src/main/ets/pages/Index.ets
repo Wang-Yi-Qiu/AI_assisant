@@ -16,7 +16,8 @@ struct Index {
   @State showSuccess: boolean = false;
 
   build() {
-    Column() {
+    Scroll() {
+      Column() {
       // 顶部标题
       Column() {
         Text('AI 智能数据可视化助手')
@@ -31,8 +32,8 @@ struct Index {
       .padding({ top: 40, bottom: 20 })
       .backgroundColor('#F5F5F5')
 
-      // 输入区域
-      Column() {
+        // 输入区域（自适应高度与间距）
+        Column() {
         Text('数据输入')
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
@@ -41,7 +42,7 @@ struct Index {
 
         TextArea({ placeholder: '请输入数据（支持 JSON、CSV 或纯文本）\n\n示例 JSON:\n{"月份":["1月","2月","3月"],"销售额":[120,200,150]}\n\n示例 CSV:\n月份,销售额\n1月,120\n2月,200\n3月,150' })
           .width('100%')
-          .height(200)
+          .height('40%')
           .fontSize(14)
           .borderRadius(8)
           .backgroundColor('#FFFFFF')
@@ -133,17 +134,18 @@ struct Index {
       .onClick(() => {
         router.pushUrl({
           url: 'pages/HistoryPage'
-        }).catch((err) => {
+        }).catch((err: Error) => {
           console.error('跳转到历史页失败:', err);
           this.errorMessage = '无法打开历史记录页';
         });
       })
 
-      Blank()
+        Blank()
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor('#F5F5F5')
     }
-    .width('100%')
-    .height('100%')
-    .backgroundColor('#F5F5F5')
   }
 
   /**
@@ -169,7 +171,7 @@ struct Index {
       setTimeout(() => {
         router.pushUrl({
           url: 'pages/ChartPage'
-        }).catch((err) => {
+        }).catch((err: Error) => {
           console.error('跳转到图表页失败:', err);
           this.errorMessage = '生成成功，但跳转失败';
           this.showSuccess = false;

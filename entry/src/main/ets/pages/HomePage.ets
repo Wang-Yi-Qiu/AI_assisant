@@ -3,7 +3,7 @@
  * @module HomePage
  */
 
-import { generateChart, ChartConfig } from '../utils/aiService';
+import { generateChart, ChartConfig, UserData, CSVData } from '../utils/aiService';
 
 /**
  * 从文本输入生成图表
@@ -38,11 +38,12 @@ export async function onGenerateFromFile(fileContent: string, fileName: string):
  * 解析用户输入的文本
  * 尝试解析为JSON，失败则返回原始文本
  */
-export function parseUserInput(text: string): unknown {
+export function parseUserInput(text: string): UserData {
   // 尝试解析为JSON
   if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
     try {
-      return JSON.parse(text);
+      const parsed = JSON.parse(text) as Record<string, string | number | boolean | null>;
+      return parsed;
     } catch {
       // JSON解析失败，继续作为原始文本处理
     }
@@ -54,7 +55,7 @@ export function parseUserInput(text: string): unknown {
 /**
  * 解析CSV格式数据（简单实现）
  */
-export function parseCSV(csvText: string): unknown {
+export function parseCSV(csvText: string): CSVData | string {
   // TODO: 使用CSV解析库（如papaparse）进行完整解析
   const lines = csvText.split('\n').filter(line => line.trim());
   if (lines.length === 0) return csvText;
@@ -69,19 +70,21 @@ export function parseCSV(csvText: string): unknown {
     return obj;
   });
 
-  return { headers, data: rows };
+  const result: CSVData = { headers, data: rows };
+  return result;
 }
 
 /**
  * 根据文件扩展名解析文件内容
  */
-export function parseFileContent(content: string, fileName: string): unknown {
+export function parseFileContent(content: string, fileName: string): UserData {
   const ext = fileName.split('.').pop()?.toLowerCase();
   
   switch (ext) {
     case 'json':
       try {
-        return JSON.parse(content);
+        const parsed = JSON.parse(content) as Record<string, string | number | boolean | null>;
+        return parsed;
       } catch {
         throw new Error('JSON文件格式无效');
       }

@@ -90,6 +90,35 @@
 - [X] T029 安全自查（密钥不在前端、RLS/Storage 策略复核） specs/001-ai-chart-mvp/
 - [X] T030 更新 quickstart.md 与 pr.md 相关片段 specs/001-ai-chart-mvp/quickstart.md
 
+---
+
+## Phase X: Multi-Device Adaptation（新增）
+
+### Scope
+- 设备：phone, tablet, 2in1, tv, wearable, car, smartVision
+- 页面：`Index.ets`, `HistoryPage.ets`, `ChartPage.ets`
+- 能力：文本输入、文件上传（降级）、渲染、导出（PNG/JSON/PDF）、导航/返回
+
+### Tasks
+- [P1] TX01 布局断点与密度适配（Index/History/Chart）
+- [P1] TX02 TV/车机焦点顺序与返回键处理（Index/History/Chart）
+- [P1] TX03 不支持文件上传设备的降级与文案（隐藏/禁用+替代路径）
+- [P2] TX04 可穿戴精简布局与导出入口收纳（菜单/长按）
+- [P2] TX05 2in1 横竖屏与窗口变化监听与栅格切换
+- [P2] TX06 大屏/展示屏信息密度与对比度优化
+- [P3] TX07 导出能力设备差异梳理（PNG→JSON 替代）
+- [P3] TX08 记录 deviceType 到 ChartRecord（可选）
+
+### Testing & Regression
+- [P1] TR01 多设备测试矩阵跑通闭环（见 plan.md）
+- [P1] TR02 焦点巡检（无“无焦点可达”缺陷）
+- [P2] TR03 小屏无溢出与可读性检查（wearable）
+- [P2] TR04 窗口/方向变化无截断/严重抖动（2in1）
+- [P3] TR05 导出替代方案与文案一致性
+
+### Acceptance Criteria
+- 覆盖矩阵的“支持/降级”能力；通过 TR01~TR05；关键异常有清晰提示与降级。
+
 ### QA & Validation (Post-MVP)
 
 - [X] T031 前端最小单测（Hypium/hamock）：

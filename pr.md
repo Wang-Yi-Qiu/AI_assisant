@@ -325,6 +325,20 @@ AI 自动生成图表分析说明；
 - ⏳ HarmonyOS 应用打包、签名与渠道分发
 - ⏳ 前端配置生产环境 URL 与密钥（通过 AppScope 安全存储）
 
+**发布与配置检查清单（新增，鉴权与多环境）**
+
+- 前端只持有 `SUPABASE_ANON_KEY`，调用 Edge 时在请求头同时设置：
+  - `Authorization: Bearer <anon key>`
+  - `apikey: <anon key>`
+- Edge Function `generate_chart_qwen` 已部署并保持 `verify_jwt=true`；监控面板可见调用日志
+- URL 通过 `getSupabaseUrl()` 动态拼接 `/functions/v1/generate_chart_qwen`，不在代码中硬编码完整域名
+- AppScope/构建变量已注入：`SUPABASE_URL`、`SUPABASE_ANON_KEY`，并区分 dev/staging/prod 三套
+- 端到端联调用例：
+  - 401：anon key 缺失/错误 → 友好提示并可重试
+  - 404：函数未找到/路径错误 → 友好提示并记录日志
+  - 504：AI 超时 → 客户端采用回退模板渲染
+- 合约一致性：`contracts/openapi.yaml` 使用 `x-operation-id: generate_chart_qwen`，路径可为统一别名 `generate_chart`
+
 
 十一、与 spec-kit 集成方案
 
@@ -706,3 +720,13 @@ export default Deno.serve(async (req) => {
   }
 });
 ```
+
+**变更日志（2025-10-29）**
+
+- 多设备兼容：`entry/src/main/module.json5` 的 `deviceTypes` 扩展为 `phone, tablet, 2in1, tv, wearable, car, smartVision`
+- 文档完善：更新 `specs/001-ai-chart-mvp/` 下 `plan.md/spec.md/data-model.md/research.md/tasks.md/checklists/requirements.md` 以覆盖多设备范围、风险、测试矩阵、完成定义与门禁
+- App 优化：
+  - `Index.ets`：外层增加 `Scroll`，输入区高度改为自适应（40%），避免小屏溢出
+  - `ChartPage.ets`：外层增加 `Scroll`，内容自适应，提升大屏与可穿戴可读性
+- 风险与降级：在 tv/car/smartVision 上文件上传入口预留降级策略（文本输入/历史复现），导出在受限设备以 JSON 替代
+- 后续待办：WebView/ECharts 桥接接入、文件 API 实装、Supabase SDK 初始化与鉴权配置

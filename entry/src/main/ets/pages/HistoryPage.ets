@@ -3,7 +3,7 @@
  * @module HistoryPage
  */
 
-import { fetchCharts } from '../utils/supabaseClient';
+import { fetchCharts, ChartRecordRow } from '../utils/supabaseClient';
 import { ChartConfig } from '../utils/aiService';
 import { setChartOption } from './ChartPage';
 import router from '@ohos.router';
@@ -132,7 +132,7 @@ struct HistoryPage {
       setChartOption(item.chartConfig);
       router.pushUrl({
         url: 'pages/ChartPage'
-      }).catch((err) => {
+      }).catch((err: Error) => {
         console.error('跳转到图表页失败:', err);
         this.errorMessage = '无法打开图表页';
       });
@@ -144,12 +144,12 @@ struct HistoryPage {
     this.errorMessage = '';
     try {
       const charts = await fetchCharts(10);
-      this.chartList = charts.map((chart: any) => ({
-        id: chart.id || '',
-        title: chart.title || chart.chart_config?.title?.text || '未命名图表',
-        type: chart.type || chart.chart_config?.series?.[0]?.type || 'unknown',
-        createdAt: chart.created_at || new Date().toISOString(),
-        chartConfig: chart.chart_config || chart.chartConfig || {},
+      this.chartList = charts.map((chart: ChartRecordRow): ChartRecord => ({
+        id: chart.id ?? '',
+        title: chart.title ?? chart.chart_config?.title?.text ?? '未命名图表',
+        type: chart.type ?? chart.chart_config?.series?.[0]?.type ?? 'unknown',
+        createdAt: chart.created_at ?? new Date().toISOString(),
+        chartConfig: chart.chart_config ?? chart.chartConfig ?? { series: [{ type: 'unknown' }] },
       }));
     } catch (error) {
       this.errorMessage = error instanceof Error ? error.message : '加载失败，请稍后重试';

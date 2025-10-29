@@ -3,20 +3,31 @@
  * @module aiService
  */
 
-import { saveChart } from './supabaseClient';
-import { startTimer, endTimer, newRequestId } from './metrics';
+import { saveChart, getSupabaseUrl, getSupabaseAnonKey } from './supabaseClient';
+import { startTimer, endTimer, newRequestId, LogPayload } from './metrics';
+import http from '@ohos.net.http';
+
+export interface EChartsTitle {
+  text?: string;
+}
+
+export interface EChartsSeriesItem {
+  type: string;
+}
 
 export interface ChartConfig {
-  title?: { text: string };
-  series: Array<{ type: string; [key: string]: any }>;
-  [key: string]: any;
+  title?: EChartsTitle;
+  series: EChartsSeriesItem[];
 }
 
-export interface ErrorResponse {
-  code: string;
-  message?: string;
-  errors?: any[];
+export interface CSVData {
+  headers: string[];
+  data: ReadonlyArray<Record<string, string>>;
 }
+
+export type UserData = string | Record<string, string | number | boolean | null> | CSVData;
+
+export interface ErrorResponse { code: string; message?: string; errors?: string[] }
 
 let lastGeneratedConfig: ChartConfig | null = null;
 
@@ -26,31 +37,59 @@ let lastGeneratedConfig: ChartConfig | null = null;
  * @returns Promise<ChartConfig> ECharts配置对象
  * @throws {Error} 当API调用失败或返回错误时
  */
-export async function generateChart(userData: unknown): Promise<ChartConfig> {
+export async function generateChart(userData: UserData): Promise<ChartConfig> {
   const url = getEdgeUrl();
   const requestId = newRequestId();
   const timer = startTimer('chart_generation_client');
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // TODO: 添加认证token
-        // 'Authorization': `Bearer ${await getAuthToken()}`
-      },
-      body: JSON.stringify(userData),
+    const httpRequest = http.createHttp();
+    // 构建鉴权头
+    const anonKey: string = getSupabaseAnonKey();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (anonKey && anonKey.length > 0) {
+      headers['Authorization'] = `Bearer ${anonKey}`;
+      headers['apikey'] = anonKey;
+    }
+    const response = await httpRequest.request(url, {
+      method: http.RequestMethod.POST,
+      header: headers,
+      extraData: JSON.stringify(userData),
+      expectDataType: http.HttpDataType.STRING,
     });
+    httpRequest.destroy();
 
-    if (!res.ok) {
-      const errorData: ErrorResponse = await res.json().catch(() => ({ code: 'UNKNOWN_ERROR' }));
+    if (response.responseCode < 200 || response.responseCode >= 300) {
+      let errorData: ErrorResponse = { code: 'UNKNOWN_ERROR' };
+      try {
+        errorData = JSON.parse(String(response.result)) as ErrorResponse;
+      } catch {
+        // 忽略解析错误，使用默认值
+      }
       const errorMessage = getErrorMessage(errorData.code, errorData.message);
-      endTimer(timer, { requestId, ok: false, code: errorData.code || 'UNKNOWN_ERROR' });
+      const duration = Date.now() - timer.start;
+      const errorPayload: LogPayload = {
+        action: timer.id,
+        duration: duration,
+        timestamp: new Date().toISOString(),
+        requestId: requestId,
+        ok: false,
+        code: errorData.code || 'UNKNOWN_ERROR',
+      };
+      endTimer(timer, errorPayload);
       throw new Error(errorMessage);
     }
 
-    const config: ChartConfig = await res.json();
+    const config: ChartConfig = JSON.parse(String(response.result)) as ChartConfig;
     lastGeneratedConfig = config;
-    endTimer(timer, { requestId, ok: true });
+    const duration = Date.now() - timer.start;
+    const successPayload: LogPayload = {
+      action: timer.id,
+      duration: duration,
+      timestamp: new Date().toISOString(),
+      requestId: requestId,
+      ok: true,
+    };
+    endTimer(timer, successPayload);
     
     // 保存到Supabase（需要认证token）
     try {
@@ -62,7 +101,17 @@ export async function generateChart(userData: unknown): Promise<ChartConfig> {
 
     return config;
   } catch (error) {
-    endTimer(timer, { requestId, ok: false, error: String(error instanceof Error ? error.message : error) });
+    const errorMsg: string = error instanceof Error ? error.message : String(error);
+    const duration = Date.now() - timer.start;
+    const errorPayload: LogPayload = {
+      action: timer.id,
+      duration: duration,
+      timestamp: new Date().toISOString(),
+      requestId: requestId,
+      ok: false,
+      error: errorMsg,
+    };
+    endTimer(timer, errorPayload);
     if (error instanceof Error) {
       throw new Error(`生成图表失败: ${error.message}`);
     }
@@ -82,12 +131,9 @@ export function getLastGeneratedConfig(): ChartConfig | null {
  * 应从环境配置或应用配置中读取
  */
 function getEdgeUrl(): string {
-  // TODO: 从应用配置或环境变量读取（生产环境）
-  // const config = getAppConfig();
-  // return config.EDGE_GENERATE_CHART_URL || '';
-  
-  // 生产环境 URL（已部署）
-  return 'https://ugeyrsnrmxjyoflkaapk.supabase.co/functions/v1/generate_chart_qwen';
+  // 从配置读取 Supabase 基础 URL 并拼接函数路径
+  const base = getSupabaseUrl().replace(/\/$/, '');
+  return `${base}/functions/v1/generate_chart_qwen`;
 }
 
 /**

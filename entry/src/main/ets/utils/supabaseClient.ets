@@ -5,16 +5,42 @@
 
 import { ChartConfig } from './aiService';
 
-export type SupabaseClient = {
-  from: (table: string) => {
-    select: (columns?: string) => {
-      order: (column: string, options?: { ascending: boolean }) => {
-        limit: (count: number) => Promise<{ data: any[] | null; error: any }>;
-      };
-    };
-    insert: (data: any) => Promise<{ data: any | null; error: any }>;
-  };
-};
+interface AscendingOption {
+  ascending: boolean;
+}
+
+interface QueryResult<T> {
+  data: T | null;
+  error: Error | null;
+}
+
+interface LimitStage<T> {
+  limit: (count: number) => Promise<QueryResult<T>>;
+}
+
+interface OrderStage<T> {
+  order: (column: string, options?: AscendingOption) => LimitStage<T>;
+}
+
+interface SelectStage<T> {
+  select: (columns?: string) => OrderStage<T>;
+}
+
+interface InsertStage {
+  insert: (data: Record<string, string | number | boolean | null>) => Promise<QueryResult<Record<string, string | number | boolean | null>>>;
+}
+
+type TableRowType = Record<string, string | number | boolean | null>;
+
+interface TableQuery extends SelectStage<readonly TableRowType[]> {
+  insert: (data: TableRowType) => Promise<QueryResult<TableRowType>>;
+}
+
+interface FromStage {
+  from: (table: string) => TableQuery;
+}
+
+export interface SupabaseClient extends FromStage {}
 
 let cachedClient: SupabaseClient | null = null;
 
@@ -24,7 +50,39 @@ export function getSupabaseClient(): SupabaseClient {
   return cachedClient;
 }
 
-export async function fetchCharts(limit: number = 10): Promise<any[]> {
+/**
+ * 读取 Supabase 项目 URL（公开信息）
+ * 注意：生产环境建议从安全配置读取，这里提供默认值以便联调。
+ */
+export function getSupabaseUrl(): string {
+  // 已上线项目 URL（公开）
+  return 'https://ugeyrsnrmxjyoflkaapk.supabase.co';
+}
+
+/**
+ * 读取 Supabase 公共 anon key（仅用于前端调用 Edge/REST，属于公开密钥）。
+ * 为避免在仓库中泄露，请在本地开发时通过安全方式注入，并在此函数中返回真实值。
+ * 如果返回空字符串，将自动降级为匿名未鉴权请求（会被 401 拒绝）。
+ */
+export function getSupabaseAnonKey(): string {
+  // TODO：请在本地开发环境安全注入 anon key 并返回真实值
+  // 例如：
+  // 1) DevEco 环境变量/构建变量
+  // 2) AppScope 安全存储读取
+  // 3) 本地未入库配置文件（.env.local 等）
+  return '';
+}
+
+export interface ChartRecordRow {
+  id?: string;
+  title?: string;
+  type?: string;
+  created_at?: string;
+  chart_config?: ChartConfig;
+  chartConfig?: ChartConfig;
+}
+
+export async function fetchCharts(limit: number = 10): Promise<ChartRecordRow[]> {
   try {
     const client = getSupabaseClient();
     return [];

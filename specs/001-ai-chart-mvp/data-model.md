@@ -14,6 +14,9 @@
 - Fields: id (uuid), ownerId (uuid), title (text), type (text), createdAt (timestamp), chartConfig (jsonb)
 - Validation: chartConfig 必须符合 chartConfig.schema.json；RLS owner 访问控制
 
+#### Optional Extensions（新增）
+- deviceType (text, optional): 记录图表生成时的来源设备（如 phone/tablet/2in1/tv/wearable/car/smartVision），用于回溯适配与性能问题。该字段仅由客户端写入，后端不强校验枚举。
+
 ## Relationships
 - User 1—N Dataset
 - User 1—N ChartRecord

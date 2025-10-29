@@ -11,6 +11,13 @@ paths:
         说明：路径 `generate_chart` 为对外统一别名，内部函数文件命名为 `generate_chart_qwen`，两者等价。
       security:
         - bearerAuth: []
+      parameters:
+        - in: header
+          name: apikey
+          required: true
+          schema:
+            type: string
+          description: Supabase anon key，与 Authorization 一致，用于通过平台网关校验。
       requestBody:
         required: true
         content:
@@ -24,6 +31,12 @@ paths:
             application/json:
               schema:
                 $ref: './schemas/chartConfig.schema.json'
+        '401':
+          description: Unauthorized (缺失或无效 anon key)
+        '404':
+          description: Not Found (函数未部署或路径错误)
+        '504':
+          description: Gateway Timeout (下游模型/网络超时，可能返回回退模板)
 components:
   securitySchemes:
     bearerAuth:
