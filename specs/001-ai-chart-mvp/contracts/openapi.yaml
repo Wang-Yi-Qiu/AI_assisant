@@ -1,0 +1,27 @@
+openapi: 3.0.3
+info:
+  title: AI Chart API
+  version: 1.0.0
+paths:
+  /functions/v1/generate_chart:
+    post:
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './schemas/userData.schema.json'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/chartConfig.schema.json'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

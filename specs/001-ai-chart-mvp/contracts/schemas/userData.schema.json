@@ -1,0 +1,8 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schemas/userData.schema.json",
+  "title": "UserData",
+  "description": "用户上传的数据，可为结构化 JSON 或 CSV 解析后的对象",
+  "type": ["object", "array", "string"],
+  "minItems": 1
+}
