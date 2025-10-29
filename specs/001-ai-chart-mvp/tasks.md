@@ -92,12 +92,12 @@
 
 ### QA & Validation (Post-MVP)
 
-- [ ] T031 前端最小单测（Hypium/hamock）：
+- [X] T031 前端最小单测（Hypium/hamock）：
   - HomePage 输入解析（JSON/CSV/txt）与异常提示
   - ChartPage 配置校验与空配置报错
   - entry/src/main/ets/
 
-- [ ] T032 Edge 合约测试（基于 OpenAPI/Schema）：
+- [X] T032 Edge 合约测试（基于 OpenAPI/Schema）：
   - 成功返回（有效输入）
   - 安全降级（INVALID_MODEL_OUTPUT → 回退模板）
   - 无效输入（INVALID_INPUT）

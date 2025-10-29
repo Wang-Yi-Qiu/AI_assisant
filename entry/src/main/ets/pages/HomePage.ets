@@ -38,7 +38,7 @@ export async function onGenerateFromFile(fileContent: string, fileName: string):
  * 解析用户输入的文本
  * 尝试解析为JSON，失败则返回原始文本
  */
-function parseUserInput(text: string): unknown {
+export function parseUserInput(text: string): unknown {
   // 尝试解析为JSON
   if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
     try {
@@ -54,7 +54,7 @@ function parseUserInput(text: string): unknown {
 /**
  * 解析CSV格式数据（简单实现）
  */
-function parseCSV(csvText: string): unknown {
+export function parseCSV(csvText: string): unknown {
   // TODO: 使用CSV解析库（如papaparse）进行完整解析
   const lines = csvText.split('\n').filter(line => line.trim());
   if (lines.length === 0) return csvText;
@@ -75,7 +75,7 @@ function parseCSV(csvText: string): unknown {
 /**
  * 根据文件扩展名解析文件内容
  */
-function parseFileContent(content: string, fileName: string): unknown {
+export function parseFileContent(content: string, fileName: string): unknown {
   const ext = fileName.split('.').pop()?.toLowerCase();
   
   switch (ext) {
