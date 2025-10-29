@@ -46,7 +46,11 @@ const API_BASE = Deno.env.get("DASHSCOPE_API_BASE")?.replace(/\/$/, "") ||
 const API_KEY = Deno.env.get("DASHSCOPE_API_KEY");
 const MODEL = Deno.env.get("QWEN_MODEL") || "qwen-plus";
 
-const systemPrompt = `你是数据可视化专家。依据用户提供的数据生成严格符合 ECharts 的 JSON；不要输出任何非 JSON 文本。`;
+const systemPrompt = `你是数据可视化专家。依据用户提供的数据生成严格符合 ECharts Option 的 JSON；不要输出任何非 JSON 文本。按以下要求：
+1) 自动选择合适图表类型（如 bar/line/pie/scatter），
+2) 生成最小必要字段（title、legend、tooltip、xAxis/yAxis、series），
+3) 文本请使用简体中文，
+4) 若输入信息不足，合理假设并给出可渲染的配置。`;
 
 async function callQwen(messages: Array<{ role: string; content: string }>, signal?: AbortSignal) {
   if (!API_KEY) throw new Error("DASHSCOPE_API_KEY missing");

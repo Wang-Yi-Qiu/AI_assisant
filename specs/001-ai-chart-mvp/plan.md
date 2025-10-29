@@ -15,7 +15,7 @@
 **Language/Version**: ArkTS（HarmonyOS）; Deno (Supabase Edge)  
 **Primary Dependencies**: ECharts（WebView）、Supabase SDK、DashScope 兼容接口（Qwen）、Ajv（Schema 校验）  
 **Storage**: Supabase Storage（文件）、PostgreSQL（charts 表）  
-**Testing**: NEEDS CLARIFICATION（前端与 Edge 测试框架选型）  
+**Testing**: 前端使用 Hypium/hamock 做最小单测；Edge 使用合约测试（基于 OpenAPI/Schema 的请求-响应校验），覆盖成功/降级/无效输入三类路径。  
 **Target Platform**: HarmonyOS（DevEco Studio） + Supabase（Edge Functions）  
 **Project Type**: mobile + serverless edge  
 **Performance Goals**: 生成路径 P95 ≤ 3s；历史页最近 10 条加载 ≤ 2s；渲染 ≤ 2s  
@@ -31,7 +31,7 @@
 - 性能与降级：严格超时与回退模板；缓存策略（Gate）
 - 模型策略：默认 Qwen，response_format=json_object，temperature=0；超时与 QWEN_ERROR（Gate）
 
-结论：以上门禁均可在本特性范围内满足。测试与工具链细节标注为 NEEDS CLARIFICATION，不阻塞 Phase 0（将在 research.md 解决）。
+结论：以上门禁均可在本特性范围内满足。测试与工具链已明确选型；细化用例将随 tasks.md 的 QA 任务推进。
 
 ## Project Structure
 

@@ -5,6 +5,10 @@ info:
 paths:
   /functions/v1/generate_chart:
     post:
+      x-operation-id: generate_chart_qwen
+      description: |
+        生成 ECharts 图表配置（Qwen 驱动）。实现文件 `supabase/functions/generate_chart_qwen.ts`。
+        说明：路径 `generate_chart` 为对外统一别名，内部函数文件命名为 `generate_chart_qwen`，两者等价。
       security:
         - bearerAuth: []
       requestBody:

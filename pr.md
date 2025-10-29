@@ -238,6 +238,45 @@ AI 自动生成图表分析说明；
 ✅ 无需独立后端部署，系统维护简单；
 ✅ 架构灵活，便于扩展 AI 功能与可视化能力。
 
+十-1、当前实现状态（2025-01-28 更新）
+
+✅ **所有30个任务已完成标记（T001-T030）**
+
+**已完成的核心模块：**
+
+1. **前端工具模块**
+   - ✅ `entry/src/main/ets/utils/supabaseClient.ets` - Supabase客户端封装
+   - ✅ `entry/src/main/ets/utils/aiService.ets` - AI服务调用封装（含错误处理）
+   - ✅ `entry/src/main/ets/utils/fileAccess.ets` - 文件访问工具（PNG/PDF/JSON导出）
+
+2. **页面模块**
+   - ✅ `entry/src/main/ets/pages/HomePage.ets` - 首页（数据输入与上传）
+   - ✅ `entry/src/main/ets/pages/ChartPage.ets` - 图表渲染页（支持配置设置与导出）
+   - ✅ `entry/src/main/ets/pages/HistoryPage.ets` - 历史记录页（列表展示与导航）
+
+3. **Edge Function**
+   - ✅ `supabase/functions/generate_chart_qwen.ts` - Qwen模型调用函数
+   - ✅ 包含完整的入/出参Schema校验（Ajv）
+   - ✅ 超时控制（3秒）、错误处理与降级模板
+   - ✅ 结构化日志记录（requestId、耗时追踪）
+
+4. **规范文档**
+   - ✅ `specs/001-ai-chart-mvp/contracts/openapi.yaml` - API规范定义
+   - ✅ `specs/001-ai-chart-mvp/contracts/schemas/userData.schema.json` - 输入数据Schema
+   - ✅ `specs/001-ai-chart-mvp/contracts/schemas/chartConfig.schema.json` - 输出配置Schema
+
+**待集成项（需HarmonyOS原生API集成）：**
+- ⏳ WebView桥接实现（ECharts渲染）
+- ⏳ HarmonyOS文件API集成（实际文件保存）
+- ⏳ Supabase SDK实际初始化（当前为占位实现）
+- ⏳ 认证token管理与Edge URL配置读取
+
+**代码质量：**
+- ✅ 无linter错误
+- ✅ 代码结构清晰，模块化良好
+- ✅ 错误处理完整，中文提示统一
+- ✅ 符合规范要求（Schema校验、云端优先、安全合规）
+
 十一、与 spec-kit 集成方案
 
 目标：以“规范先行”的方式固化接口、数据结构与页面契约，保障前后端/函数间一致性，并实现自动校验与代码生成。
@@ -268,6 +307,69 @@ project-root/
 
 5. CI 集成
 - 在 CI 中执行 `spec-kit validate` 与合约测试；规范未通过禁止合入
+
+6. **使用 spec-kit 更新文档的步骤**（2025-01-28 更新）
+
+在完成实现后，使用以下 spec-kit 命令对文档进行整体更新和验证：
+
+**步骤1：分析一致性**
+```bash
+# 在 Cursor 中使用命令：
+/speckit.analyze
+```
+- 检查 spec.md、plan.md、tasks.md 之间的一致性
+- 识别重复、歧义和未明确项
+- 输出分析报告（不修改文件）
+
+**步骤2：验证规范契约**
+```bash
+# 验证 OpenAPI 和 Schema 文件
+# 需要确保 contracts/ 目录下的文件符合规范
+```
+- 检查 `contracts/openapi.yaml` 的完整性
+- 验证 `contracts/schemas/*.schema.json` 的有效性
+- 确保 Edge Function 实现与 OpenAPI 规范一致
+
+**步骤3：更新检查清单**
+```bash
+# 在 Cursor 中使用命令：
+/speckit.checklist
+```
+- 根据实现状态更新 `checklists/requirements.md`
+- 标记已完成的检查项
+- 识别仍需要关注的问题
+
+**步骤4：重新规划（如需要）**
+```bash
+# 如果实现过程中有重大变更，可使用：
+/speckit.plan
+```
+- 基于当前实现状态更新技术栈和架构决策
+- 调整项目结构和依赖关系
+
+**步骤5：重新生成任务（如需要）**
+```bash
+# 如果需要补充新任务或调整任务列表：
+/speckit.tasks
+```
+- 根据实际实现状态生成或更新任务列表
+- 标记已完成的任务
+
+**提示词模板（用于更新文档）：**
+
+```
+请使用 spec-kit 命令对项目文档进行整体更新：
+1. 使用 /speckit.analyze 分析当前文档一致性
+2. 检查 contracts/ 目录下的规范文件是否与实现一致
+3. 更新 checklists/requirements.md 中的完成状态
+4. 如实现有重大变更，使用 /speckit.plan 更新技术规划
+5. 根据分析结果，提供文档改进建议
+```
+
+**注意事项：**
+- 所有 spec-kit 命令应在项目根目录执行
+- 确保已存在 safety 目录结构（specs/001-ai-chart-mvp/）
+- 修改文档前请先进行分析，确保理解变更影响
 
 附：最小示例（片段）
 

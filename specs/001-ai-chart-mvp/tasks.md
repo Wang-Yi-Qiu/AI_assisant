@@ -90,6 +90,24 @@
 - [X] T029 安全自查（密钥不在前端、RLS/Storage 策略复核） specs/001-ai-chart-mvp/
 - [X] T030 更新 quickstart.md 与 pr.md 相关片段 specs/001-ai-chart-mvp/quickstart.md
 
+### QA & Validation (Post-MVP)
+
+- [ ] T031 前端最小单测（Hypium/hamock）：
+  - HomePage 输入解析（JSON/CSV/txt）与异常提示
+  - ChartPage 配置校验与空配置报错
+  - entry/src/main/ets/
+
+- [ ] T032 Edge 合约测试（基于 OpenAPI/Schema）：
+  - 成功返回（有效输入）
+  - 安全降级（INVALID_MODEL_OUTPUT → 回退模板）
+  - 无效输入（INVALID_INPUT）
+  - supabase/functions/generate_chart_qwen.ts
+
+- [ ] T033 性能与观测验证：
+  - 采集生成路径 P95、历史页加载 P95 指标
+  - 校验日志包含 requestId、错误码与耗时
+  - pr.md/quickstart.md 更新“度量方法”说明
+
 ---
 
 ## Dependencies & Execution Order

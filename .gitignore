@@ -1,12 +1,44 @@
+# HarmonyOS / Node.js
 /node_modules
 /oh_modules
-/local.properties
-/.idea
 **/build
+/local.properties
 /.hvigor
+/.appanalyzer
+
+# IDE
+/.idea
+/.vscode
+*.iml
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.crt
+*.pem
+
+# Logs
+*.log
+*.log.*
+
+# Test
+**/.test
 .cxx
+
+# Build tools
 /.clangd
 /.clang-format
 /.clang-tidy
-**/.test
-/.appanalyzer
+
+# Deno / Edge Functions
+supabase/.temp/
+*.deno_cache/

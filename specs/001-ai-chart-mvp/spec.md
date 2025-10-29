@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-ai-chart-mvp`  
 **Created**: 2025-10-29  
-**Status**: Draft  
+**Status**: Ready  
 **Input**: User description: "@pr.md"
 
 ## User Scenarios & Testing *(mandatory)*
@@ -117,3 +117,19 @@
 - **SC-002**: 生成成功率≥99%，多数用户在3秒内看到首张图表。
 - **SC-003**: 历史页可在2秒内加载最近10条记录，打开任意记录渲染≤2秒。
 - **SC-004**: 至少90%的试用用户能在首次尝试中成功完成主要任务（生成并导出）。
+
+## 配置与环境变量 *(mandatory)*
+
+为满足宪章的“密钥零硬编码、分环境注入”要求，本特性涉及的最小变量清单如下（详见 `pr.md` 的“配置与环境变量”）：
+
+- SUPABASE_URL（前端可公开）
+- SUPABASE_ANON_KEY（前端可公开，短期）
+- EDGE_GENERATE_CHART_URL（前端可公开，不含密钥）
+- DASHSCOPE_API_KEY（仅 Edge 使用，前端禁止持有）
+- DASHSCOPE_API_BASE（可选，默认兼容端点）
+- QWEN_MODEL（可选，默认 `qwen-plus`）
+
+要求：
+- 前端不保存服务端密钥；密钥仅在 Edge Function 注入
+- 不同环境使用不同变量组；构建产物仅包含必要公开配置
+- 合规与审计：变更需在 PR 中说明影响并通过 `spec-kit validate`
