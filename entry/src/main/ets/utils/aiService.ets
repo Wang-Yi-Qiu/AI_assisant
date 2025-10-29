@@ -4,6 +4,7 @@
  */
 
 import { saveChart } from './supabaseClient';
+import { startTimer, endTimer, newRequestId } from './metrics';
 
 export interface ChartConfig {
   title?: { text: string };
@@ -27,6 +28,8 @@ let lastGeneratedConfig: ChartConfig | null = null;
  */
 export async function generateChart(userData: unknown): Promise<ChartConfig> {
   const url = getEdgeUrl();
+  const requestId = newRequestId();
+  const timer = startTimer('chart_generation_client');
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -41,11 +44,13 @@ export async function generateChart(userData: unknown): Promise<ChartConfig> {
     if (!res.ok) {
       const errorData: ErrorResponse = await res.json().catch(() => ({ code: 'UNKNOWN_ERROR' }));
       const errorMessage = getErrorMessage(errorData.code, errorData.message);
+      endTimer(timer, { requestId, ok: false, code: errorData.code || 'UNKNOWN_ERROR' });
       throw new Error(errorMessage);
     }
 
     const config: ChartConfig = await res.json();
     lastGeneratedConfig = config;
+    endTimer(timer, { requestId, ok: true });
     
     // 保存到Supabase（需要认证token）
     try {
@@ -57,6 +62,7 @@ export async function generateChart(userData: unknown): Promise<ChartConfig> {
 
     return config;
   } catch (error) {
+    endTimer(timer, { requestId, ok: false, error: String(error instanceof Error ? error.message : error) });
     if (error instanceof Error) {
       throw new Error(`生成图表失败: ${error.message}`);
     }

@@ -103,7 +103,7 @@
   - 无效输入（INVALID_INPUT）
   - supabase/functions/generate_chart_qwen.ts
 
-- [ ] T033 性能与观测验证：
+- [X] T033 性能与观测验证：
   - 采集生成路径 P95、历史页加载 P95 指标
   - 校验日志包含 requestId、错误码与耗时
   - pr.md/quickstart.md 更新“度量方法”说明

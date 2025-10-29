@@ -271,11 +271,13 @@ AI 自动生成图表分析说明；
 - ⏳ Supabase SDK实际初始化（当前为占位实现）
 - ⏳ 认证token管理与Edge URL配置读取
 
-**代码质量：**
+**代码质量与度量：**
 - ✅ 无linter错误
 - ✅ 代码结构清晰，模块化良好
 - ✅ 错误处理完整，中文提示统一
 - ✅ 符合规范要求（Schema校验、云端优先、安全合规）
+ - ✅ 已接入客户端性能埋点：`utils/metrics.ets`；在 `aiService.generateChart` 记录 `requestId/duration/ok`
+ - ⏳ 首次 P95 统计将在演示后补充至本节
 
 十一、与 spec-kit 集成方案
 

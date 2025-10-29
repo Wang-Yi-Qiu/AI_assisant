@@ -16,3 +16,10 @@
 ## 故障排查
 - 提示“输入无效”：检查文件类型与大小、文本格式。
 - 提示“生成超时”或“降级”：稍后重试或更换数据规模；结果可能使用回退模板。
+
+## 度量方法（性能与观测）
+- 客户端埋点：`utils/metrics.ets` 提供 `startTimer/endTimer` 与 `newRequestId`；
+  - 在 `aiService.generateChart` 内输出结构化日志：`{"action":"chart_generation_client","duration":...,"requestId":"...","ok":true}`。
+- 指标采集：
+  - 记录“生成路径 P95”（从点击生成到收到配置）与“历史页加载 P95”（从进入页面到列表渲染）。
+  - 在 PR 中粘贴一次演示日志样例与 P95 粗略统计。
