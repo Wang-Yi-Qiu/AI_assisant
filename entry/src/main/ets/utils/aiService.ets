@@ -82,10 +82,12 @@ export function getLastGeneratedConfig(): ChartConfig | null {
  * 应从环境配置或应用配置中读取
  */
 function getEdgeUrl(): string {
-  // TODO: 从应用配置或环境变量读取
+  // TODO: 从应用配置或环境变量读取（生产环境）
   // const config = getAppConfig();
   // return config.EDGE_GENERATE_CHART_URL || '';
-  return 'https://your-project.supabase.co/functions/v1/generate_chart';
+  
+  // 生产环境 URL（已部署）
+  return 'https://ugeyrsnrmxjyoflkaapk.supabase.co/functions/v1/generate_chart_qwen';
 }
 
 /**

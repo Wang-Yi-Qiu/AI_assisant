@@ -265,10 +265,15 @@ AI 自动生成图表分析说明；
    - ✅ `specs/001-ai-chart-mvp/contracts/schemas/userData.schema.json` - 输入数据Schema
    - ✅ `specs/001-ai-chart-mvp/contracts/schemas/chartConfig.schema.json` - 输出配置Schema
 
+**已上线的基础设施：**
+- ✅ Supabase 数据库表与 RLS 策略已应用
+- ✅ Edge Function 已部署，可通过生产 URL 调用
+- ✅ TypeScript 类型定义已生成并保存
+
 **待集成项（需HarmonyOS原生API集成）：**
 - ⏳ WebView桥接实现（ECharts渲染）
 - ⏳ HarmonyOS文件API集成（实际文件保存）
-- ⏳ Supabase SDK实际初始化（当前为占位实现）
+- ⏳ Supabase SDK实际初始化（需配置生产环境URL与anon key）
 - ⏳ 认证token管理与Edge URL配置读取
 
 **代码质量与度量：**
@@ -278,6 +283,48 @@ AI 自动生成图表分析说明；
 - ✅ 符合规范要求（Schema校验、云端优先、安全合规）
  - ✅ 已接入客户端性能埋点：`utils/metrics.ets`；在 `aiService.generateChart` 记录 `requestId/duration/ok`
  - ⏳ 首次 P95 统计将在演示后补充至本节
+
+十-2、MCP 服务集成（2025-10-29 更新）
+
+- 已修复 `.cursor/mcp.json` 配置结构，接入以下 MCP 服务：
+  - `chrome-devtools`：用于页面联动与调试辅助
+  - `supabase`：用于查询项目状态、类型生成、日志与建议获取
+- 当前状态：需要完成权限授权后方可在 Cursor 中直接调用 Supabase MCP（避免在文档或代码中暴露密钥）。
+- 授权方式（二选一）：
+  1) 在 Cursor 设置中为 Supabase MCP 完成账号绑定/授权；
+  2) 使用 Cursor Secrets/环境变量注入访问令牌，仅在本地开发环境生效。
+
+十-3、MCP 拉取结果（2025-10-29 实时）
+
+- 项目 URL：`https://ugeyrsnrmxjyoflkaapk.supabase.co`
+- Edge Functions：✅ `generate_chart_qwen` 已成功部署至生产环境
+  - 部署命令：`supabase functions deploy generate_chart_qwen --no-verify-jwt`
+  - 函数入口：`supabase/functions/generate_chart_qwen/index.ts`
+  - 监控面板：https://supabase.com/dashboard/project/qiagqgdvpfklyekwtvvb/functions
+- 数据库：✅ `charts` 表已创建并启用 RLS
+  - 迁移名称：`create_charts_table_and_rls`
+  - 策略：用户仅可访问自己的图表记录（SELECT/INSERT/UPDATE/DELETE）
+- 类型定义：✅ 已生成并保存至 `supabase/types/database.types.ts`
+- 安全建议：✅ 无（MCP advisors 未返回问题）
+- 性能建议：✅ 无（MCP advisors 未返回问题）
+
+十-4、生产环境上线准备清单（2025-10-29）
+
+**已完成的部署项：**
+- ✅ 数据库表结构与 RLS 策略已应用（`charts` 表）
+- ✅ Edge Function `generate_chart_qwen` 已部署至生产
+- ✅ TypeScript 类型定义已生成并保存
+
+**待配置的环境变量（需在 Supabase Dashboard 设置）：**
+1. `DASHSCOPE_API_KEY`（必填）- 通义千问 API 密钥
+2. `QWEN_MODEL`（可选，默认 `qwen-plus`）- 使用的模型名称
+3. `DASHSCOPE_API_BASE`（可选，默认兼容端点）- API 基础 URL
+
+**待完成项：**
+- ⏳ Storage Bucket 创建（如需要文件上传功能）
+- ⏳ HarmonyOS 应用打包、签名与渠道分发
+- ⏳ 前端配置生产环境 URL 与密钥（通过 AppScope 安全存储）
+
 
 十一、与 spec-kit 集成方案
 
