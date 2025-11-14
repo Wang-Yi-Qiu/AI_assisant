@@ -8,16 +8,28 @@ import { generateChart, ChartConfig, UserData, CSVData } from '../utils/aiServic
 /**
  * 从文本输入生成图表
  * @param text 用户输入的文本（可以是JSON字符串、CSV文本等）
+ * @param signal AbortSignal用于取消操作
  * @returns Promise<ChartConfig> 生成的图表配置
  * @throws {Error} 当输入无效或生成失败时
  */
-export async function onGenerateFromText(text: string): Promise<ChartConfig> {
+export async function onGenerateFromText(text: string, signal?: AbortSignal): Promise<ChartConfig> {
   if (!text || text.trim().length === 0) {
     throw new Error('输入不能为空，请提供数据');
   }
 
+  // 检查取消信号
+  if (signal?.aborted) {
+    throw new DOMException('Operation cancelled', 'AbortError');
+  }
+
   const data = parseUserInput(text.trim());
-  return await generateChart(data);
+
+  // 再次检查取消信号
+  if (signal?.aborted) {
+    throw new DOMException('Operation cancelled', 'AbortError');
+  }
+
+  return await generateChart(data, signal);
 }
 
 /**

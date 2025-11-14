@@ -5,19 +5,82 @@
 
 import { saveChart, getSupabaseUrl, getSupabaseAnonKey } from './supabaseClient';
 import { startTimer, endTimer, newRequestId, LogPayload } from './metrics';
-import http from '@ohos.net.http';
+import { httpClient, handleHttpError, RequestManager } from './httpClient';
+import { ErrorHandler, AppError, ErrorCode } from './errorHandler';
+import { isChartConfig, isValidUserData, validateAndCleanString } from './typeGuard';
 
 export interface EChartsTitle {
   text?: string;
+  subtext?: string;
+  left?: string | number;
+  top?: string | number;
+  textStyle?: {
+    color?: string;
+    fontSize?: number;
+    fontWeight?: 'normal' | 'bold' | 'bolder' | 'lighter';
+  };
+}
+
+export interface EChartsAxis {
+  type?: 'category' | 'value' | 'time' | 'log';
+  data?: string[] | number[];
+  name?: string;
+  nameLocation?: 'start' | 'middle' | 'end';
+  nameTextStyle?: {
+    color?: string;
+    fontSize?: number;
+  };
 }
 
 export interface EChartsSeriesItem {
   type: string;
+  name?: string;
+  data?: number[] | Array<{name: string, value: any}> | any[];
+  xAxisIndex?: number;
+  yAxisIndex?: number;
+  color?: string | string[];
+  itemStyle?: {
+    color?: string;
+    borderWidth?: number;
+    borderColor?: string;
+  };
+  label?: {
+    show?: boolean;
+    position?: 'top' | 'left' | 'right' | 'bottom' | 'inside' | 'outside';
+    formatter?: string | ((params: any) => string);
+  };
+}
+
+export interface EChartsLegend {
+  data?: string[];
+  orient?: 'horizontal' | 'vertical';
+  left?: string | number;
+  top?: string | number;
+}
+
+export interface EChartsGrid {
+  left?: string | number;
+  top?: string | number;
+  right?: string | number;
+  bottom?: string | number;
+  containLabel?: boolean;
 }
 
 export interface ChartConfig {
   title?: EChartsTitle;
+  tooltip?: {
+    trigger?: 'item' | 'axis';
+    axisPointer?: {
+      type?: 'line' | 'shadow' | 'cross';
+    };
+  };
+  legend?: EChartsLegend;
+  grid?: EChartsGrid;
+  xAxis?: EChartsAxis | EChartsAxis[];
+  yAxis?: EChartsAxis | EChartsAxis[];
   series: EChartsSeriesItem[];
+  color?: string[];
+  backgroundColor?: string;
 }
 
 export interface CSVData {
@@ -34,41 +97,70 @@ let lastGeneratedConfig: ChartConfig | null = null;
 /**
  * 生成图表配置
  * @param userData 用户输入的数据（CSV解析后的对象、结构化JSON或字符串）
+ * @param signal AbortSignal用于取消操作
  * @returns Promise<ChartConfig> ECharts配置对象
- * @throws {Error} 当API调用失败或返回错误时
+ * @throws {AppError} 当API调用失败或返回错误时
  */
-export async function generateChart(userData: UserData): Promise<ChartConfig> {
+export async function generateChart(userData: UserData, signal?: AbortSignal): Promise<ChartConfig> {
+  // 1. 输入验证
+  if (!isValidUserData(userData)) {
+    throw new AppError(
+      ErrorCode.INVALID_INPUT,
+      'Invalid user data provided',
+      '输入数据格式无效，请检查数据内容',
+      userData
+    );
+  }
+
+  // 2. 清理和验证字符串输入
+  let cleanedData: UserData;
+  if (typeof userData === 'string') {
+    cleanedData = validateAndCleanString(userData);
+  } else {
+    cleanedData = userData;
+  }
+
+  // 检查取消信号
+  if (signal?.aborted) {
+    throw new DOMException('Operation cancelled', 'AbortError');
+  }
+
   const url = getEdgeUrl();
   const requestId = newRequestId();
   const timer = startTimer('chart_generation_client');
-  try {
-    const httpRequest = http.createHttp();
-    // 构建鉴权头
-    const anonKey: string = getSupabaseAnonKey();
-    if (!anonKey || anonKey.length === 0) {
-      throw new Error('服务异常，请稍后重试: 缺少 Supabase anon key 配置');
-    }
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (anonKey && anonKey.length > 0) {
-      headers['Authorization'] = `Bearer ${anonKey}`;
-      headers['apikey'] = anonKey;
-    }
-    const response = await httpRequest.request(url, {
-      method: http.RequestMethod.POST,
-      header: headers,
-      extraData: JSON.stringify(userData),
-      expectDataType: http.HttpDataType.STRING,
-    });
-    httpRequest.destroy();
 
-    if (response.responseCode < 200 || response.responseCode >= 300) {
+  try {
+    // 使用清理后的数据，传递取消信号
+    const response = await httpClient.supabasePost('/functions/v1/generate_chart_qwen', JSON.stringify(cleanedData), { signal });
+
+    if (response.status < 200 || response.status >= 300) {
       let errorData: ErrorResponse = { code: 'UNKNOWN_ERROR' };
       try {
-        errorData = JSON.parse(String(response.result)) as ErrorResponse;
+        errorData = await httpClient.parseJsonResponse<ErrorResponse>(response);
       } catch {
         // 忽略解析错误，使用默认值
       }
-      const errorMessage = getErrorMessage(errorData.code, errorData.message);
+
+      // 将API错误代码映射到ErrorCode
+      let errorCode: ErrorCode;
+      switch (errorData.code) {
+        case 'INVALID_INPUT':
+          errorCode = ErrorCode.INVALID_INPUT;
+          break;
+        case 'INVALID_JSON_OUTPUT':
+          errorCode = ErrorCode.INVALID_JSON_OUTPUT;
+          break;
+        case 'INVALID_MODEL_OUTPUT':
+          errorCode = ErrorCode.INVALID_MODEL_OUTPUT;
+          break;
+        case 'QWEN_ERROR':
+          errorCode = ErrorCode.QWEN_ERROR;
+          break;
+        default:
+          errorCode = ErrorCode.API_ERROR;
+          break;
+      }
+
       const duration = Date.now() - timer.start;
       const errorPayload: LogPayload = {
         action: timer.id,
@@ -79,10 +171,31 @@ export async function generateChart(userData: UserData): Promise<ChartConfig> {
         code: errorData.code || 'UNKNOWN_ERROR',
       };
       endTimer(timer, errorPayload);
-      throw new Error(errorMessage);
+
+      const appError = new AppError(
+        errorCode,
+        `API error: ${errorData.code}`,
+        ErrorHandler['ERROR_MESSAGES'][errorCode],
+        errorData
+      );
+      ErrorHandler.reportError(appError);
+      throw appError;
     }
 
-    const config: ChartConfig = JSON.parse(String(response.result)) as ChartConfig;
+    const rawData = await httpClient.parseJsonResponse<unknown>(response);
+
+    // 使用类型守卫验证返回的配置
+    if (!isChartConfig(rawData)) {
+      throw new AppError(
+        ErrorCode.INVALID_MODEL_OUTPUT,
+        'Invalid chart configuration returned',
+        'AI生成的图表配置无效，请重试',
+        rawData
+      );
+    }
+
+    const config: ChartConfig = rawData;
+
     lastGeneratedConfig = config;
     const duration = Date.now() - timer.start;
     const successPayload: LogPayload = {
@@ -93,7 +206,7 @@ export async function generateChart(userData: UserData): Promise<ChartConfig> {
       ok: true,
     };
     endTimer(timer, successPayload);
-    
+
     // 保存到Supabase（需要认证token）
     try {
       await saveChart(config);
@@ -104,7 +217,13 @@ export async function generateChart(userData: UserData): Promise<ChartConfig> {
 
     return config;
   } catch (error) {
-    const errorMsg: string = error instanceof Error ? error.message : String(error);
+    // 如果已经是AppError，直接重新抛出
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    // 否则使用ErrorHandler处理
+    const appError = ErrorHandler.handle(error, 'generateChart');
     const duration = Date.now() - timer.start;
     const errorPayload: LogPayload = {
       action: timer.id,
@@ -112,13 +231,12 @@ export async function generateChart(userData: UserData): Promise<ChartConfig> {
       timestamp: new Date().toISOString(),
       requestId: requestId,
       ok: false,
-      error: errorMsg,
+      code: appError.code,
     };
     endTimer(timer, errorPayload);
-    if (error instanceof Error) {
-      throw new Error(`生成图表失败: ${error.message}`);
-    }
-    throw new Error('生成图表失败: 未知错误');
+
+    ErrorHandler.reportError(appError);
+    throw appError;
   }
 }
 
@@ -137,21 +255,6 @@ function getEdgeUrl(): string {
   // 从配置读取 Supabase 基础 URL 并拼接函数路径
   const base = getSupabaseUrl().replace(/\/$/, '');
   return `${base}/functions/v1/generate_chart_qwen`;
-}
-
-/**
- * 将错误代码转换为用户友好的中文错误消息
- */
-function getErrorMessage(code: string, detail?: string): string {
-  const messages: Record<string, string> = {
-    'INVALID_INPUT': '输入数据格式无效，请检查数据格式',
-    'INVALID_JSON_OUTPUT': 'AI返回格式异常，请重试',
-    'INVALID_MODEL_OUTPUT': 'AI返回的图表配置不符合要求',
-    'QWEN_ERROR': 'AI服务调用失败，请稍后重试',
-    'UNKNOWN_ERROR': '服务异常，请稍后重试',
-  };
-  const baseMessage = messages[code] || messages['UNKNOWN_ERROR'];
-  return detail ? `${baseMessage}: ${detail}` : baseMessage;
 }
 
 

@@ -5,6 +5,7 @@
 
 import { ChartConfig } from './aiService';
 import { getAppConfig } from './config';
+import { authService } from './authService';
 import http from '@ohos.net.http';
 
 interface AscendingOption {
@@ -103,17 +104,19 @@ export async function fetchCharts(limit: number = 10): Promise<ChartRecordRow[]>
   try {
     const baseUrl: string = getSupabaseUrl().replace(/\/$/, '');
     const anonKey: string = getSupabaseAnonKey();
+    const sessionToken = authService.getSessionToken();
     if (!anonKey) {
       throw new Error('缺少 Supabase anon key 配置');
     }
 
-    const url: string = `${baseUrl}/rest/v1/charts?select=*&order=created_at.desc&limit=${encodeURIComponent(String(limit))}`;
+    const userId = authService.getUserId();
+    const url: string = `${baseUrl}/rest/v1/charts?select=*&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=${encodeURIComponent(String(limit))}`;
     const httpRequest = http.createHttp();
     const response = await httpRequest.request(url, {
       method: http.RequestMethod.GET,
       header: {
         'apikey': anonKey,
-        'Authorization': `Bearer ${anonKey}`,
+        'Authorization': `Bearer ${sessionToken || anonKey}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
@@ -151,6 +154,7 @@ export async function saveChart(chartConfig: ChartConfig): Promise<void> {
   try {
     const baseUrl: string = getSupabaseUrl().replace(/\/$/, '');
     const anonKey: string = getSupabaseAnonKey();
+    const sessionToken = authService.getSessionToken();
     if (!anonKey) {
       throw new Error('缺少 Supabase anon key 配置');
     }
@@ -158,12 +162,12 @@ export async function saveChart(chartConfig: ChartConfig): Promise<void> {
     const url: string = `${baseUrl}/rest/v1/charts`;
     const title: string = chartConfig?.title?.text || '未命名图表';
     const type: string = chartConfig?.series?.[0]?.type || 'unknown';
+    const userId = authService.getUserId();
     const payload: InsertChartPayload = {
       title: title,
       type: type,
       chart_config: chartConfig,
-      // 匿名用户：使用固定占位 user_id（后续可接入 Auth）
-      user_id: 'anonymous',
+      user_id: userId, // 使用真实用户ID
     };
 
     const httpRequest = http.createHttp();
@@ -171,7 +175,7 @@ export async function saveChart(chartConfig: ChartConfig): Promise<void> {
       method: http.RequestMethod.POST,
       header: {
         'apikey': anonKey,
-        'Authorization': `Bearer ${anonKey}`,
+        'Authorization': `Bearer ${sessionToken || anonKey}`,
         'Content-Type': 'application/json',
         'Prefer': 'return=representation',
         'Accept': 'application/json',

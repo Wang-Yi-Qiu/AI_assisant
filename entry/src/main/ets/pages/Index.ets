@@ -3,9 +3,14 @@
  * @module Index
  */
 
-import { onGenerateFromText } from './HomePage';
+import { onGenerateFromText, parseFileContent } from './HomePage';
 import { setChartOption } from './ChartPage';
 import router from '@ohos.router';
+import { filePicker } from '@ohos.file.picker';
+import { BusinessError } from '@kit.BasicServicesKit';
+import { util } from '@kit.ArkTS';
+import { ErrorHandler, AppError } from '../utils/errorHandler';
+import { asyncManager, AsyncOptions } from '../utils/asyncManager';
 
 @Entry
 @Component
@@ -14,6 +19,24 @@ struct Index {
   @State isLoading: boolean = false;
   @State errorMessage: string = '';
   @State showSuccess: boolean = false;
+  // 异步任务管理
+  private currentTask: any = null;
+  private isDestroyed: boolean = false;
+
+  aboutToDisappear() {
+    // 组件销毁时取消所有任务
+    this.cancelCurrentTask();
+  }
+
+  /**
+   * 取消当前任务
+   */
+  private cancelCurrentTask(): void {
+    if (this.currentTask) {
+      this.currentTask.cancel();
+      this.currentTask = null;
+    }
+  }
 
   build() {
     Scroll() {
@@ -151,54 +174,191 @@ struct Index {
   /**
    * 生成图表
    */
-  async onGenerateChart() {
+  onGenerateChart() {
     if (!this.inputText.trim()) {
       this.errorMessage = '请输入数据后再生成图表';
       return;
     }
 
+    // 取消之前的任务
+    this.cancelCurrentTask();
+
     this.isLoading = true;
     this.errorMessage = '';
     this.showSuccess = false;
 
-    try {
-      const chartConfig = await onGenerateFromText(this.inputText);
-      setChartOption(chartConfig);
-      
-      this.showSuccess = true;
-      
-      // 跳转到图表页
-      setTimeout(() => {
-        router.pushUrl({
-          url: 'pages/ChartPage'
-        }).catch((err: Error) => {
-          console.error('跳转到图表页失败:', err);
-          this.errorMessage = '生成成功，但跳转失败';
-          this.showSuccess = false;
-        });
-      }, 1000);
-    } catch (error) {
-      this.errorMessage = error instanceof Error ? error.message : '生成图表失败，请稍后重试';
-      console.error('生成图表失败:', error);
-    } finally {
-      this.isLoading = false;
-    }
+    const options: AsyncOptions = {
+      timeout: 45000, // 45秒超时
+      retryCount: 2,
+      retryDelay: 1000,
+      onProgress: (progress) => {
+        console.log(`生成进度: ${Math.round(progress)}%`);
+      }
+    };
+
+    this.currentTask = asyncManager.createTask(async (signal) => {
+      return await onGenerateFromText(this.inputText, signal);
+    }, options);
+
+    this.currentTask.promise
+      .then((chartConfig) => {
+        if (this.isDestroyed) return;
+
+        setChartOption(chartConfig); // 不传入控制器，只保存配置
+        this.showSuccess = true;
+
+        // 跳转到图表页
+        setTimeout(() => {
+          if (!this.isDestroyed) {
+            router.pushUrl({
+              url: 'pages/ChartPage'
+            }).catch((err: Error) => {
+              console.error('跳转到图表页失败:', err);
+              if (!this.isDestroyed) {
+                this.errorMessage = '生成成功，但跳转失败';
+                this.showSuccess = false;
+              }
+            });
+          }
+        }, 1000);
+      })
+      .catch((error) => {
+        if (this.isDestroyed) return;
+
+        const appError = ErrorHandler.handle(error, 'onGenerateChart');
+        this.errorMessage = appError.userMessage || '生成图表失败，请稍后重试';
+        console.error('生成图表失败:', appError);
+      })
+      .finally(() => {
+        if (!this.isDestroyed) {
+          this.isLoading = false;
+          this.currentTask = null;
+        }
+      });
   }
 
   /**
    * 上传文件
    */
   async onUploadFile() {
-    // TODO: 实现文件选择器
-    // import picker from '@ohos.file.picker';
-    // const filePicker = new picker.DocumentViewPicker();
-    // const result = await filePicker.select();
-    // if (result && result.length > 0) {
-    //   const file = result[0];
-    //   const content = await readFileContent(file.uri);
-    //   await this.onGenerateFromFile(content, file.name);
-    // }
-    
-    this.errorMessage = '文件上传功能开发中，请使用文本输入';
+    try {
+      this.isLoading = true;
+      this.errorMessage = '';
+
+      // 创建文档选择器
+      const documentPicker = new filePicker.DocumentViewPicker();
+      documentPicker.select((err: BusinessError, result: Array<string>) => {
+        if (err) {
+          console.error('文件选择失败:', err);
+          this.errorMessage = `文件选择失败: ${err.message}`;
+          this.isLoading = false;
+          return;
+        }
+
+        if (result && result.length > 0) {
+          const fileUri = result[0];
+          console.log('选择的文件:', fileUri);
+          this.processFile(fileUri);
+        } else {
+          this.errorMessage = '未选择文件';
+          this.isLoading = false;
+        }
+      });
+
+      // 设置文件类型过滤器
+      documentPicker.selectFile({
+        maxSelectNumber: 1,
+        fileSuffixArray: ['.csv', '.json', '.txt', '.xlsx', '.xls']
+      });
+
+    } catch (error) {
+      const appError = ErrorHandler.handle(error, 'onUploadFile');
+      this.errorMessage = appError.userMessage || '文件上传失败，请稍后重试';
+      console.error('文件上传失败:', appError);
+      this.isLoading = false;
+    }
+  }
+
+  /**
+   * 处理选中的文件
+   */
+  private async processFile(fileUri: string) {
+    try {
+      // 读取文件内容
+      const content = await this.readFileContent(fileUri);
+      if (!content) {
+        this.errorMessage = '无法读取文件内容';
+        this.isLoading = false;
+        return;
+      }
+
+      // 解析文件内容
+      const parsedData = parseFileContent(content);
+      this.inputText = JSON.stringify(parsedData, null, 2);
+
+      this.errorMessage = '';
+      console.log('文件解析成功');
+
+    } catch (error) {
+      const appError = ErrorHandler.handle(error, 'processFile');
+      this.errorMessage = appError.userMessage || '文件处理失败';
+      console.error('文件处理失败:', appError);
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  /**
+   * 读取文件内容（安全分块读取）
+   */
+  private async readFileContent(fileUri: string): Promise<string> {
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB 文件大小限制
+    const CHUNK_SIZE = 64 * 1024; // 64KB 分块大小
+    let content = '';
+
+    try {
+      const fs = await import('@ohos.file.fs');
+
+      // 1. 先检查文件大小
+      const stat = fs.statSync(fileUri);
+      if (stat.size > MAX_FILE_SIZE) {
+        throw new Error(`文件过大，最大支持 ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB`);
+      }
+
+      if (stat.size === 0) {
+        throw new Error('文件为空');
+      }
+
+      // 2. 打开文件
+      const file = fs.openSync(fileUri, fs.OpenMode.READ_ONLY);
+
+      try {
+        // 3. 分块读取文件内容
+        let offset = 0;
+        const decoder = new util.TextDecoder('utf-8');
+
+        while (offset < stat.size) {
+          const remainingSize = Math.min(CHUNK_SIZE, stat.size - offset);
+          const buffer = new ArrayBuffer(remainingSize);
+          const readLen = fs.readSync(file.fd, buffer, { offset });
+
+          if (readLen === 0) break;
+
+          const chunk = decoder.decodeWithStream(buffer, { stream: false }).substring(0, readLen);
+          content += chunk;
+          offset += readLen;
+        }
+
+      } finally {
+        // 4. 确保文件句柄被关闭
+        fs.closeSync(file);
+      }
+
+      return content;
+
+    } catch (error) {
+      console.error('读取文件失败:', error);
+      throw error; // 让上层的ErrorHandler处理
+    }
   }
 }

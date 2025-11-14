@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECharts 图表</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #ffffff;
+        }
+
+        #chart-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 14px;
+            color: #f44336;
+            max-width: 80%;
+        }
+    </style>
+</head>
+<body>
+    <div id="chart-container">
+        <div class="loading" id="loading">正在初始化图表...</div>
+    </div>
+
+    <script>
+        let chart = null;
+        let isInitialized = false;
+
+        // 初始化图表
+        function initChart() {
+            try {
+                const container = document.getElementById('chart-container');
+                chart = echarts.init(container);
+                isInitialized = true;
+
+                // 移除加载提示
+                const loading = document.getElementById('loading');
+                if (loading) {
+                    loading.style.display = 'none';
+                }
+
+                console.log('ECharts 初始化成功');
+                return true;
+            } catch (error) {
+                console.error('ECharts 初始化失败:', error);
+                showError('图表初始化失败');
+                return false;
+            }
+        }
+
+        // 设置图表配置
+        function setChartOption(option) {
+            try {
+                if (!isInitialized) {
+                    if (!initChart()) {
+                        return false;
+                    }
+                }
+
+                if (!option || !option.series || option.series.length === 0) {
+                    showError('图表配置无效');
+                    return false;
+                }
+
+                // 设置默认主题和样式
+                const enhancedOption = {
+                    backgroundColor: '#ffffff',
+                    tooltip: {
+                        trigger: 'axis',
+                        axisPointer: {
+                            type: 'shadow'
+                        }
+                    },
+                    legend: {
+                        type: 'scroll',
+                        orient: 'horizontal',
+                        left: 'center',
+                        bottom: 10
+                    },
+                    grid: {
+                        left: '3%',
+                        right: '4%',
+                        bottom: '15%',
+                        top: '10%',
+                        containLabel: true
+                    },
+                    ...option
+                };
+
+                chart.setOption(enhancedOption, true);
+                console.log('图表配置设置成功');
+                return true;
+            } catch (error) {
+                console.error('设置图表配置失败:', error);
+                showError('设置图表配置失败: ' + error.message);
+                return false;
+            }
+        }
+
+        // 导出图片
+        function exportChart(options = {}) {
+            try {
+                if (!isInitialized || !chart) {
+                    throw new Error('图表未初始化');
+                }
+
+                const defaultOptions = {
+                    type: 'png',
+                    backgroundColor: '#ffffff',
+                    pixelRatio: window.devicePixelRatio || 2,
+                    excludeComponents: ['toolbox']
+                };
+
+                const exportOptions = { ...defaultOptions, ...options };
+                const dataURL = chart.getDataURL(exportOptions);
+
+                console.log('图表导出成功');
+                return dataURL;
+            } catch (error) {
+                console.error('导出图表失败:', error);
+                throw error;
+            }
+        }
+
+        // 获取图表配置
+        function getChartOption() {
+            try {
+                if (!isInitialized || !chart) {
+                    throw new Error('图表未初始化');
+                }
+
+                return chart.getOption();
+            } catch (error) {
+                console.error('获取图表配置失败:', error);
+                throw error;
+            }
+        }
+
+        // 显示错误信息
+        function showError(message) {
+            const container = document.getElementById('chart-container');
+            container.innerHTML = `<div class="error">${message}</div>`;
+        }
+
+        // 窗口大小改变时重新调整图表
+        window.addEventListener('resize', function() {
+            if (chart && isInitialized) {
+                chart.resize();
+            }
+        });
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(initChart, 100);
+        });
+
+        // 暴露接口给 HarmonyOS WebView
+        window.chartAPI = {
+            setOption: setChartOption,
+            exportImage: exportChart,
+            getOption: getChartOption,
+            init: initChart
+        };
+    </script>
+</body>
+</html>
