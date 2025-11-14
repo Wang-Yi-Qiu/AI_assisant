@@ -45,6 +45,9 @@ export async function generateChart(userData: UserData): Promise<ChartConfig> {
     const httpRequest = http.createHttp();
     // 构建鉴权头
     const anonKey: string = getSupabaseAnonKey();
+    if (!anonKey || anonKey.length === 0) {
+      throw new Error('服务异常，请稍后重试: 缺少 Supabase anon key 配置');
+    }
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (anonKey && anonKey.length > 0) {
       headers['Authorization'] = `Bearer ${anonKey}`;

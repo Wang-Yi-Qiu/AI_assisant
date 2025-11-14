@@ -4,6 +4,8 @@
  */
 
 import { ChartConfig } from './aiService';
+import { getAppConfig } from './config';
+import http from '@ohos.net.http';
 
 interface AscendingOption {
   ascending: boolean;
@@ -55,8 +57,9 @@ export function getSupabaseClient(): SupabaseClient {
  * 注意：生产环境建议从安全配置读取，这里提供默认值以便联调。
  */
 export function getSupabaseUrl(): string {
-  // 已上线项目 URL（公开）
-  return 'https://ugeyrsnrmxjyoflkaapk.supabase.co';
+  // 从运行时配置读取（EntryAbility 启动时注入），提供默认回退
+  const cfg = getAppConfig();
+  return (cfg.supabaseUrl || 'https://ugeyrsnrmxjyoflkaapk.supabase.co');
 }
 
 /**
@@ -65,12 +68,9 @@ export function getSupabaseUrl(): string {
  * 如果返回空字符串，将自动降级为匿名未鉴权请求（会被 401 拒绝）。
  */
 export function getSupabaseAnonKey(): string {
-  // TODO：请在本地开发环境安全注入 anon key 并返回真实值
-  // 例如：
-  // 1) DevEco 环境变量/构建变量
-  // 2) AppScope 安全存储读取
-  // 3) 本地未入库配置文件（.env.local 等）
-  return '';
+  // 由 EntryAbility 在启动时通过 rawfile/supabase.json 注入
+  const cfg = getAppConfig();
+  return cfg.supabaseAnonKey || '';
 }
 
 export interface ChartRecordRow {
@@ -82,10 +82,65 @@ export interface ChartRecordRow {
   chartConfig?: ChartConfig;
 }
 
+// Supabase REST 返回的 charts 表结构（后端字段原样映射）
+interface DbChartRow {
+  id?: string | number | null;
+  title?: string | null;
+  type?: string | null;
+  created_at?: string | null;
+  chart_config?: ChartConfig | null;
+}
+
+// 插入 charts 时的请求负载
+interface InsertChartPayload {
+  title: string;
+  type: string;
+  chart_config: ChartConfig;
+  user_id: string;
+}
+
 export async function fetchCharts(limit: number = 10): Promise<ChartRecordRow[]> {
   try {
-    const client = getSupabaseClient();
-    return [];
+    const baseUrl: string = getSupabaseUrl().replace(/\/$/, '');
+    const anonKey: string = getSupabaseAnonKey();
+    if (!anonKey) {
+      throw new Error('缺少 Supabase anon key 配置');
+    }
+
+    const url: string = `${baseUrl}/rest/v1/charts?select=*&order=created_at.desc&limit=${encodeURIComponent(String(limit))}`;
+    const httpRequest = http.createHttp();
+    const response = await httpRequest.request(url, {
+      method: http.RequestMethod.GET,
+      header: {
+        'apikey': anonKey,
+        'Authorization': `Bearer ${anonKey}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      expectDataType: http.HttpDataType.STRING,
+    });
+    httpRequest.destroy();
+
+    if (response.responseCode < 200 || response.responseCode >= 300) {
+      throw new Error(`请求失败(${response.responseCode})`);
+    }
+
+    const text = String(response.result || '[]');
+    const rows = JSON.parse(text) as ReadonlyArray<DbChartRow>;
+
+    const mapped: ChartRecordRow[] = rows.map((row: DbChartRow): ChartRecordRow => {
+      const rec: ChartRecordRow = {
+        id: row.id !== null && row.id !== undefined ? String(row.id) : '',
+        title: typeof row.title === 'string' ? row.title : undefined,
+        type: typeof row.type === 'string' ? row.type : undefined,
+        created_at: typeof row.created_at === 'string' ? row.created_at : undefined,
+        chart_config: row.chart_config ?? undefined,
+        chartConfig: row.chart_config ?? undefined,
+      };
+      return rec;
+    });
+
+    return mapped;
   } catch (error) {
     console.error('查询图表记录失败:', error);
     throw new Error('加载图表记录失败');
@@ -94,9 +149,43 @@ export async function fetchCharts(limit: number = 10): Promise<ChartRecordRow[]>
 
 export async function saveChart(chartConfig: ChartConfig): Promise<void> {
   try {
-    const client = getSupabaseClient();
-    const title = chartConfig?.title?.text || '未命名图表';
-    console.log(`图表已保存（占位实现）: ${title}`);
+    const baseUrl: string = getSupabaseUrl().replace(/\/$/, '');
+    const anonKey: string = getSupabaseAnonKey();
+    if (!anonKey) {
+      throw new Error('缺少 Supabase anon key 配置');
+    }
+
+    const url: string = `${baseUrl}/rest/v1/charts`;
+    const title: string = chartConfig?.title?.text || '未命名图表';
+    const type: string = chartConfig?.series?.[0]?.type || 'unknown';
+    const payload: InsertChartPayload = {
+      title: title,
+      type: type,
+      chart_config: chartConfig,
+      // 匿名用户：使用固定占位 user_id（后续可接入 Auth）
+      user_id: 'anonymous',
+    };
+
+    const httpRequest = http.createHttp();
+    const response = await httpRequest.request(url, {
+      method: http.RequestMethod.POST,
+      header: {
+        'apikey': anonKey,
+        'Authorization': `Bearer ${anonKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
+        'Accept': 'application/json',
+      },
+      extraData: JSON.stringify(payload),
+      expectDataType: http.HttpDataType.STRING,
+    });
+    httpRequest.destroy();
+
+    if (response.responseCode < 200 || response.responseCode >= 300) {
+      throw new Error(`保存失败(${response.responseCode})`);
+    }
+
+    // 成功即返回
   } catch (error) {
     console.error('保存图表失败:', error);
     throw new Error('保存图表记录失败');

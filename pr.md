@@ -300,7 +300,7 @@ AI 自动生成图表分析说明；
 - Edge Functions：✅ `generate_chart_qwen` 已成功部署至生产环境
   - 部署命令：`supabase functions deploy generate_chart_qwen --no-verify-jwt`
   - 函数入口：`supabase/functions/generate_chart_qwen/index.ts`
-  - 监控面板：https://supabase.com/dashboard/project/qiagqgdvpfklyekwtvvb/functions
+  - 监控面板：https://supabase.com/dashboard/project/ugeyrsnrmxjyoflkaapk/functions
 - 数据库：✅ `charts` 表已创建并启用 RLS
   - 迁移名称：`create_charts_table_and_rls`
   - 策略：用户仅可访问自己的图表记录（SELECT/INSERT/UPDATE/DELETE）
@@ -339,6 +339,16 @@ AI 自动生成图表分析说明；
   - 504：AI 超时 → 客户端采用回退模板渲染
 - 合约一致性：`contracts/openapi.yaml` 使用 `x-operation-id: generate_chart_qwen`，路径可为统一别名 `generate_chart`
 
+
+**前端配置落地（新增 2025-10-29）**
+
+- 新增运行时配置注入：
+  - `entry/src/main/ets/utils/config.ets` 提供全局 `setAppConfig/getAppConfig`
+  - `EntryAbility.onCreate` 启动时读取 `rawfile/supabase.json` 并注入 URL 与 anon key
+  - `supabaseClient.ets` 改为从运行时配置读取 `getSupabaseUrl/getSupabaseAnonKey`
+- 本地需要填写：`entry/src/main/resources/rawfile/supabase.json`
+  - 示例：`{"supabaseUrl":"https://<your>.supabase.co","anonKey":"<your-anon-key>"}`
+  - anon key 为公开密钥，可放入客户端；服务端密钥仍仅在 Edge Function
 
 十一、与 spec-kit 集成方案
 
@@ -723,10 +733,61 @@ export default Deno.serve(async (req) => {
 
 **变更日志（2025-10-29）**
 
-- 多设备兼容：`entry/src/main/module.json5` 的 `deviceTypes` 扩展为 `phone, tablet, 2in1, tv, wearable, car, smartVision`
+- 修复构建错误：根据鸿蒙 Lite-wearable（API ≥ 9 仅支持 JS）的限制，进一步将 `deviceTypes` 收敛为仅 `phone`，彻底规避可穿戴/非手机目标导致的 ETS 构建失败（`00303052 Configuration Error`）。
 - 文档完善：更新 `specs/001-ai-chart-mvp/` 下 `plan.md/spec.md/data-model.md/research.md/tasks.md/checklists/requirements.md` 以覆盖多设备范围、风险、测试矩阵、完成定义与门禁
 - App 优化：
   - `Index.ets`：外层增加 `Scroll`，输入区高度改为自适应（40%），避免小屏溢出
   - `ChartPage.ets`：外层增加 `Scroll`，内容自适应，提升大屏与可穿戴可读性
 - 风险与降级：在 tv/car/smartVision 上文件上传入口预留降级策略（文本输入/历史复现），导出在受限设备以 JSON 替代
 - 后续待办：WebView/ECharts 桥接接入、文件 API 实装、Supabase SDK 初始化与鉴权配置
+
+- 新增：前端运行时配置注入与鉴权头修复，消除“Missing authorization header”问题（需要本地填入 anon key）。
+
+**变更日志（2025-10-29·补充）**
+
+- Edge Function 配置修复：移除通过 CLI flags 传递 import_map/装饰器的旧方式，统一改为函数目录 `deno.json` 管理；已在 `supabase/functions/generate_chart_qwen/deno.json` 启用 `"experimentalDecorators": true`，避免部署警告，兼容后续 Deno/Supabase CLI 版本。
+- 建议升级 Supabase CLI 至最新版本以获得更稳定的 Deno 2 支持（本地执行：`brew upgrade supabase/tap/supabase` 或 `supabase update`）。
+
+**变更日志（2025-10-29·再次补充）**
+
+- 移除 `experimentalDecorators`：由于 Deno/TS 新版提示该选项已弃用且本函数未使用装饰器，故从 `supabase/functions/generate_chart_qwen/deno.json` 中删除该配置，以消除部署时的弃用警告。
+- 关于“Specifying import_map/decorator through flags is no longer supported”：该提示来自 CLI/运行时内部逻辑，当前我们已使用 `deno.json` 正确管理 imports，无需额外操作，提示可忽略。
+
+**服务端（Edge Function）环境变量与部署步骤（新增 2025-10-29）**
+
+1. 必填与可选变量
+   - 必填：`DASHSCOPE_API_KEY`（通义千问密钥，仅服务端持有）
+   - 可选：`QWEN_MODEL`（默认 `qwen-plus`）
+   - 可选：`DASHSCOPE_API_BASE`（默认 `https://dashscope.aliyuncs.com/compatible-mode/v1`）
+
+2. Dashboard 配置
+   - 路径：Project → Edge Functions → `generate_chart_qwen` → Settings/Configuration → Environment variables
+   - 新增以上变量并保存，点击 Redeploy 重新部署该函数
+
+3. CLI 配置（备选）
+   - `supabase secrets set DASHSCOPE_API_KEY=******`
+   - `supabase secrets set QWEN_MODEL=qwen-plus`
+   - `supabase secrets set DASHSCOPE_API_BASE=https://dashscope.aliyuncs.com/compatible-mode/v1`
+   - `supabase functions deploy generate_chart_qwen`
+
+4. 线上验证（以 anon key 调用）
+   - 确认 2xx：表示密钥生效；若 401 → 检查前端是否携带 `Authorization` 与 `apikey`
+   - 若 500/504 → 检查上述三项环境变量并确保已重新部署
+
+十五-1、变量读取与一键验证（新增）
+
+- 客户端公开配置存放于 `entry/src/main/resources/rawfile/supabase.json`（仅 `supabaseUrl/anonKey`）。
+- 为避免手工替换占位符，提供脚本自动读取并验证 Edge Function：
+
+```bash
+bash ./commands/verify_edge.sh
+```
+
+- 输出为调用结果。若状态为 200 且返回包含 `series` 的 JSON，表示：
+  - 客户端已正确携带 `Authorization/apikey`
+  - 服务器端 `DASHSCOPE_API_KEY` 等环境变量有效
+
+常见错误排查：
+- 401 Unauthorized：`anonKey` 缺失/错误 → 检查 `supabase.json` 内容。
+- 404 Not Found：函数未部署或路径错误 → 确认 `generate_chart_qwen` 已部署且 URL 正确。
+- 500/504 且消息含 "DASHSCOPE_API_KEY missing"：在 Dashboard 的 Edge Function 环境变量里补充 `DASHSCOPE_API_KEY` 并 Redeploy；或使用 `supabase secrets set --env-file ./supabase/functions/.env` 后重新部署。

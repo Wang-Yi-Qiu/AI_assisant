@@ -41,10 +41,21 @@ const ajv = new Ajv({ allErrors: true });
 const validateIn = ajv.compile(userDataSchema);
 const validateOut = ajv.compile(chartConfigSchema);
 
-const API_BASE = Deno.env.get("DASHSCOPE_API_BASE")?.replace(/\/$/, "") ||
-  "https://dashscope.aliyuncs.com/compatible-mode/v1";
-const API_KEY = Deno.env.get("DASHSCOPE_API_KEY");
-const MODEL = Deno.env.get("QWEN_MODEL") || "qwen-plus";
+function getEnv(name: string): string | undefined {
+  try { return Deno.env.get(name) ?? undefined; } catch { return undefined; }
+}
+
+const API_BASE_DEFAULT = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+function getApiBase(): string {
+  const base = getEnv("DASHSCOPE_API_BASE");
+  return (base?.replace(/\/$/, "") || API_BASE_DEFAULT);
+}
+function getApiKey(): string | undefined {
+  return getEnv("DASHSCOPE_API_KEY");
+}
+function getModel(): string {
+  return getEnv("QWEN_MODEL") || "qwen-plus";
+}
 
 const systemPrompt = `你是数据可视化专家。依据用户提供的数据生成严格符合 ECharts Option 的 JSON；不要输出任何非 JSON 文本。按以下要求：
 1) 自动选择合适图表类型（如 bar/line/pie/scatter），
@@ -53,6 +64,9 @@ const systemPrompt = `你是数据可视化专家。依据用户提供的数据�
 4) 若输入信息不足，合理假设并给出可渲染的配置。`;
 
 async function callQwen(messages: Array<{ role: string; content: string }>, signal?: AbortSignal) {
+  const API_KEY = getApiKey();
+  const API_BASE = getApiBase();
+  const MODEL = getModel();
   if (!API_KEY) throw new Error("DASHSCOPE_API_KEY missing");
   const res = await fetch(`${API_BASE}/chat/completions`, {
     method: "POST",
@@ -73,9 +87,10 @@ async function callQwen(messages: Array<{ role: string; content: string }>, sign
 export default Deno.serve(async (req) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
-  console.log(JSON.stringify({ requestId, timestamp: new Date().toISOString(), action: 'chart_generation_start' }));
+  const hasKey = Boolean(getApiKey());
+  console.log(JSON.stringify({ requestId, timestamp: new Date().toISOString(), action: 'chart_generation_start', hasDashscopeKey: hasKey }));
   const ctrl = new AbortController();
-  const timeout = setTimeout(() => ctrl.abort("timeout"), 3000);
+  const timeout = setTimeout(() => ctrl.abort("timeout"), 15000);
   try {
     const body = await req.json();
     if (!validateIn(body)) {
@@ -85,10 +100,28 @@ export default Deno.serve(async (req) => {
       );
     }
     const userMsg = typeof body === "string" ? body : JSON.stringify(body);
-    const content = await callQwen([
+    // 轻量重试，缓解偶发网络/后端抖动（仅对非4xx错误重试）
+    async function callQwenWithRetry(messages: Array<{ role: string; content: string }>, signal?: AbortSignal, maxRetries = 2): Promise<string> {
+      let attempt = 0;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        try {
+          return await callQwen(messages, signal);
+        } catch (e) {
+          const msg = String(e?.message || e);
+          const isClientError = /^DashScope error: 4\d{2}/.test(msg);
+          if (attempt >= maxRetries || isClientError) throw e;
+          const backoffMs = 500 * (attempt + 1);
+          await new Promise((r) => setTimeout(r, backoffMs));
+          attempt++;
+        }
+      }
+    }
+
+    const content = await callQwenWithRetry([
       { role: "system", content: systemPrompt },
       { role: "user", content: `请根据以下数据返回 ECharts 配置的 JSON：\n${userMsg}` },
-    ], ctrl.signal);
+    ], ctrl.signal, 2);
 
     let json: unknown;
     try {

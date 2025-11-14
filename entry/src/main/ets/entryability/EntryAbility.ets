@@ -1,6 +1,8 @@
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
+import { setAppConfig } from '../utils/config';
+import util from '@ohos.util';
 
 const DOMAIN = 0x0000;
 
@@ -12,6 +14,25 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+
+    // 尝试从 rawfile 读取 Supabase 配置（可选）
+    try {
+      const rm = this.context.resourceManager;
+      const bytes: Uint8Array = rm.getRawFileContentSync('supabase.json');
+      const decoder = new util.TextDecoder('utf-8', { ignoreBOM: true });
+      const text: string = decoder.decode(bytes);
+      const parsed = JSON.parse(text) as Record<string, string>;
+      const url: string | undefined = parsed && typeof parsed['supabaseUrl'] === 'string' ? parsed['supabaseUrl'] : undefined;
+      const anon: string | undefined = parsed && typeof parsed['anonKey'] === 'string' ? parsed['anonKey'] : undefined;
+      setAppConfig({
+        supabaseUrl: url,
+        supabaseAnonKey: anon,
+      });
+      hilog.info(DOMAIN, 'testTag', '%{public}s', 'Loaded supabase config from rawfile');
+    } catch (e) {
+      // 原则：配置缺失不崩溃，仅记录
+      hilog.warn(DOMAIN, 'testTag', 'No supabase.json or parse error. Using defaults. Cause: %{public}s', JSON.stringify(e));
+    }
   }
 
   onDestroy(): void {
