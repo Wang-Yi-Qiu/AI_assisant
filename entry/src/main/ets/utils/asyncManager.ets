@@ -6,11 +6,17 @@
 
 import { ErrorHandler, AppError, ErrorCode } from './errorHandler';
 
+// 自定义取消令牌，替代AbortSignal
+export interface CancellationToken {
+  cancelled: boolean;
+  cancel(): void;
+}
+
 export interface AsyncOptions {
   timeout?: number; // 超时时间（毫秒）
   retryCount?: number; // 重试次数
   retryDelay?: number; // 重试延迟（毫秒）
-  signal?: AbortSignal; // 取消信号
+  token?: CancellationToken; // 取消令牌
   onProgress?: (progress: number) => void; // 进度回调
 }
 
@@ -22,9 +28,17 @@ export interface AsyncTask<T> {
   isCancelled: boolean;
 }
 
+class CancellationTokenImpl implements CancellationToken {
+  public cancelled = false;
+
+  cancel(): void {
+    this.cancelled = true;
+  }
+}
+
 export class AsyncManager {
   private static instance: AsyncManager;
-  private activeTasks: Map<string, any> = new Map();
+  private activeTasks: Map<string, CancellationTokenImpl> = new Map();
   private taskCounter = 0;
 
   static getInstance(): AsyncManager {
@@ -40,16 +54,14 @@ export class AsyncManager {
    * @param options 执行选项
    */
   async execute<T>(
-    taskFn: (signal: AbortSignal) => Promise<T>,
+    taskFn: (token: CancellationToken) => Promise<T>,
     options: AsyncOptions = {}
   ): Promise<T> {
-    const {
-      timeout = 30000, // 默认30秒超时
-      retryCount = 2, // 默认重试2次
-      retryDelay = 1000, // 默认重试延迟1秒
-      signal,
-      onProgress
-    } = options;
+    const timeout = options.timeout || 30000; // 默认30秒超时
+    const retryCount = options.retryCount || 2; // 默认重试2次
+    const retryDelay = options.retryDelay || 1000; // 默认重试延迟1秒
+    const token = options.token;
+    const onProgress = options.onProgress;
 
     let lastError: Error | AppError | null = null;
 
@@ -57,23 +69,26 @@ export class AsyncManager {
       const taskId = this.generateTaskId();
 
       try {
-        // 创建AbortController用于取消操作
-        const controller = new AbortController();
-        const finalSignal = signal || controller.signal;
+        // 创建取消令牌
+        const controller = token || new CancellationTokenImpl();
+        const finalToken = controller;
 
         // 注册任务
-        this.activeTasks.set(taskId, controller);
+        this.activeTasks.set(taskId, controller as CancellationTokenImpl);
 
         // 创建超时Promise
-        const timeoutPromise = timeout > 0 ? this.createTimeoutPromise(timeout, finalSignal) : null;
+        const timeoutPromise = timeout > 0 ? this.createTimeoutPromise(timeout, finalToken) : null;
 
         // 执行任务
-        const taskPromise = taskFn(finalSignal);
+        const taskPromise = taskFn(finalToken);
 
         // 等待任务完成或超时
-        const result = timeoutPromise
-          ? await Promise.race([taskPromise, timeoutPromise])
-          : await taskPromise;
+        let result: T;
+        if (timeoutPromise) {
+          result = await this.racePromises(taskPromise, timeoutPromise);
+        } else {
+          result = await taskPromise;
+        }
 
         // 任务成功完成
         this.activeTasks.delete(taskId);
@@ -83,7 +98,7 @@ export class AsyncManager {
         lastError = error instanceof Error ? error : new Error(String(error));
 
         // 如果是取消操作，直接抛出错误
-        if (lastError.name === 'AbortError') {
+        if (lastError.message.includes('cancelled')) {
           throw new AppError(
             ErrorCode.API_TIMEOUT,
             'Operation cancelled',
@@ -121,22 +136,27 @@ export class AsyncManager {
    * @param options 选项
    */
   createTask<T>(
-    taskFn: (signal: AbortSignal) => Promise<T>,
+    taskFn: (token: CancellationToken) => Promise<T>,
     options: AsyncOptions = {}
   ): AsyncTask<T> {
     const taskId = this.generateTaskId();
-    const controller = new AbortController();
+    const controller = new CancellationTokenImpl();
 
-    const promise = this.execute(taskFn, {
-      ...options,
-      signal: controller.signal
-    });
+    const executeOptions: AsyncOptions = {
+      timeout: options.timeout,
+      retryCount: options.retryCount,
+      retryDelay: options.retryDelay,
+      onProgress: options.onProgress,
+      token: controller
+    };
+
+    const promise = this.execute(taskFn, executeOptions);
 
     const task: AsyncTask<T> = {
       id: taskId,
       promise,
       cancel: () => {
-        controller.abort();
+        controller.cancel();
         this.activeTasks.delete(taskId);
       },
       isCompleted: false,
@@ -165,47 +185,64 @@ export class AsyncManager {
    * @param options 选项
    */
   async executeAll<T>(
-    taskFns: Array<(signal: AbortSignal) => Promise<T>>,
+    taskFns: Array<(token: CancellationToken) => Promise<T>>,
     options: AsyncOptions & { concurrency?: number } = {}
   ): Promise<T[]> {
-    const { concurrency = 3, ...executeOptions } = options;
+    const concurrency = options.concurrency || 3;
 
     if (taskFns.length === 0) {
       return [];
     }
 
+    const executeOptions: AsyncOptions = {
+      timeout: options.timeout,
+      retryCount: options.retryCount,
+      retryDelay: options.retryDelay,
+      onProgress: options.onProgress,
+      token: options.token
+    };
+
     if (concurrency >= taskFns.length) {
       // 并发数足够，直接并行执行
-      const promises = taskFns.map(taskFn =>
-        this.execute(taskFn, executeOptions)
-      );
-      return Promise.all(promises);
+      const results: T[] = [];
+      for (let i = 0; i < taskFns.length; i++) {
+        const result = await this.execute(taskFns[i], executeOptions);
+        results.push(result);
+      }
+      return results;
     }
 
     // 控制并发数量
     const results: T[] = [];
-    const executing: Promise<void>[] = [];
+    const promises: Promise<T>[] = [];
 
-    for (const taskFn of taskFns) {
-      const promise = this.execute(taskFn, executeOptions)
-        .then(result => {
-          results.push(result);
-        });
+    for (let i = 0; i < taskFns.length; i++) {
+      if (promises.length < concurrency) {
+        promises.push(this.execute(taskFns[i], executeOptions));
+      } else {
+        // 等待一个任务完成
+        const completedResult = await Promise.race(promises);
+        results.push(completedResult);
 
-      executing.push(promise);
-
-      if (executing.length >= concurrency) {
-        await Promise.race(executing);
-        // 移除已完成的任务
-        const stillExecuting = executing.filter(p =>
-          p !== Promise.race(executing)
-        );
-        executing.length = 0;
-        executing.push(...stillExecuting);
+        // 移除第一个已完成的promise并添加新的
+        let foundIndex = -1;
+        for (let j = 0; j < promises.length; j++) {
+          if (promises[j] === Promise.resolve(completedResult)) {
+            foundIndex = j;
+            break;
+          }
+        }
+        if (foundIndex >= 0) {
+          promises.splice(foundIndex, 1);
+        }
+        promises.push(this.execute(taskFns[i], executeOptions));
       }
     }
 
-    await Promise.all(executing);
+    // 等待剩余任务完成
+    const remainingResults = await Promise.all(promises);
+    results.push(...remainingResults);
+
     return results;
   }
 
@@ -214,7 +251,7 @@ export class AsyncManager {
    */
   cancelAllTasks(): void {
     for (const controller of this.activeTasks.values()) {
-      controller.abort();
+      controller.cancel();
     }
     this.activeTasks.clear();
   }
@@ -229,7 +266,7 @@ export class AsyncManager {
   /**
    * 创建超时Promise
    */
-  private createTimeoutPromise(timeoutMs: number, signal: AbortSignal): Promise<never> {
+  private createTimeoutPromise(timeoutMs: number, token: CancellationToken): Promise<never> {
     return new Promise((_, reject) => {
       const timeoutId = setTimeout(() => {
         reject(new AppError(
@@ -240,12 +277,43 @@ export class AsyncManager {
       }, timeoutMs);
 
       // 监听取消信号
-      if (signal) {
-        signal.addEventListener('abort', () => {
-          clearTimeout(timeoutId);
-          reject(new DOMException('Operation cancelled', 'AbortError'));
-        });
+      if (token) {
+        const checkCancel = setInterval(() => {
+          if (token.cancelled) {
+            clearTimeout(timeoutId);
+            clearInterval(checkCancel);
+            reject(new Error('Operation cancelled'));
+          }
+        }, 100);
       }
+    });
+  }
+
+  /**
+   * 替代Promise.race
+   */
+  private async racePromises<T>(promise1: Promise<T>, promise2: Promise<never>): Promise<T> {
+    let completed = false;
+
+    return new Promise((resolve, reject) => {
+      promise1.then((result) => {
+        if (!completed) {
+          completed = true;
+          resolve(result);
+        }
+      }).catch((error) => {
+        if (!completed) {
+          completed = true;
+          reject(error);
+        }
+      });
+
+      promise2.catch((error) => {
+        if (!completed) {
+          completed = true;
+          reject(error);
+        }
+      });
     });
   }
 
@@ -268,13 +336,13 @@ export class AsyncManager {
    * @param fn 要防抖的函数
    * @param delay 延迟时间
    */
-  debounce<T extends (...args: any[]) => any>(
+  debounce<T extends (...args: unknown[]) => unknown>(
     fn: T,
     delay: number
-  ): (...args: Parameters<T>) => void {
+  ): (...args: unknown[]) => void {
     let timeoutId: number | null = null;
 
-    return (...args: Parameters<T>) => {
+    return (...args: unknown[]): void => {
       if (timeoutId !== null) {
         clearTimeout(timeoutId);
       }
@@ -291,13 +359,13 @@ export class AsyncManager {
    * @param fn 要节流的函数
    * @param delay 延迟时间
    */
-  throttle<T extends (...args: any[]) => any>(
+  throttle<T extends (...args: unknown[]) => unknown>(
     fn: T,
     delay: number
-  ): (...args: Parameters<T>) => void {
+  ): (...args: unknown[]) => void {
     let lastCall = 0;
 
-    return (...args: Parameters<T>) => {
+    return (...args: unknown[]): void => {
       const now = Date.now();
       if (now - lastCall >= delay) {
         fn(...args);

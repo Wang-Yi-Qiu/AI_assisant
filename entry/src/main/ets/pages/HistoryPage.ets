@@ -130,9 +130,7 @@ struct HistoryPage {
     .borderRadius(8)
     .onClick(() => {
       setChartOption(item.chartConfig);
-      router.pushUrl({
-        url: 'pages/ChartPage'
-      }).catch((err: Error) => {
+      router.pushPathByName('pages/ChartPage').catch((err: Error) => {
         console.error('跳转到图表页失败:', err);
         this.errorMessage = '无法打开图表页';
       });

@@ -6,11 +6,15 @@
 import { onGenerateFromText, parseFileContent } from './HomePage';
 import { setChartOption } from './ChartPage';
 import router from '@ohos.router';
-import { filePicker } from '@ohos.file.picker';
+import filePicker from '@ohos.file.picker';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { util } from '@kit.ArkTS';
 import { ErrorHandler, AppError } from '../utils/errorHandler';
-import { asyncManager, AsyncOptions } from '../utils/asyncManager';
+import { asyncManager, AsyncOptions, CancellationToken } from '../utils/asyncManager';
+
+interface ManagedTask {
+  cancel(): void;
+}
 
 @Entry
 @Component
@@ -20,7 +24,7 @@ struct Index {
   @State errorMessage: string = '';
   @State showSuccess: boolean = false;
   // 异步任务管理
-  private currentTask: any = null;
+  private currentTask: ManagedTask | null = null;
   private isDestroyed: boolean = false;
 
   aboutToDisappear() {
@@ -155,9 +159,7 @@ struct Index {
       .padding(16)
       .margin({ top: 20 })
       .onClick(() => {
-        router.pushUrl({
-          url: 'pages/HistoryPage'
-        }).catch((err: Error) => {
+        router.pushPathByName('pages/HistoryPage').catch((err: Error) => {
           console.error('跳转到历史页失败:', err);
           this.errorMessage = '无法打开历史记录页';
         });
@@ -210,9 +212,7 @@ struct Index {
         // 跳转到图表页
         setTimeout(() => {
           if (!this.isDestroyed) {
-            router.pushUrl({
-              url: 'pages/ChartPage'
-            }).catch((err: Error) => {
+            router.pushPathByName('pages/ChartPage').catch((err: Error) => {
               console.error('跳转到图表页失败:', err);
               if (!this.isDestroyed) {
                 this.errorMessage = '生成成功，但跳转失败';
@@ -335,7 +335,7 @@ struct Index {
       try {
         // 3. 分块读取文件内容
         let offset = 0;
-        const decoder = new util.TextDecoder('utf-8');
+        const decoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
 
         while (offset < stat.size) {
           const remainingSize = Math.min(CHUNK_SIZE, stat.size - offset);
@@ -344,14 +344,15 @@ struct Index {
 
           if (readLen === 0) break;
 
-          const chunk = decoder.decodeWithStream(buffer, { stream: false }).substring(0, readLen);
+          const uint8Array = new Uint8Array(buffer, 0, readLen);
+          const chunk = decoder.decode(uint8Array);
           content += chunk;
           offset += readLen;
         }
 
       } finally {
         // 4. 确保文件句柄被关闭
-        fs.closeSync(file);
+        fs.close(file.fd);
       }
 
       return content;

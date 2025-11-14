@@ -29,11 +29,19 @@ interface SelectStage<T> {
   select: (columns?: string) => OrderStage<T>;
 }
 
-interface InsertStage {
-  insert: (data: Record<string, string | number | boolean | null>) => Promise<QueryResult<Record<string, string | number | boolean | null>>>;
+interface DatabaseRow {
+  id: string;
+  user_id: string;
+  chart_config: object;
+  created_at: string;
+  updated_at: string;
 }
 
-type TableRowType = Record<string, string | number | boolean | null>;
+interface InsertStage {
+  insert: (data: DatabaseRow) => Promise<QueryResult<DatabaseRow>>;
+}
+
+type TableRowType = DatabaseRow;
 
 interface TableQuery extends SelectStage<readonly TableRowType[]> {
   insert: (data: TableRowType) => Promise<QueryResult<TableRowType>>;

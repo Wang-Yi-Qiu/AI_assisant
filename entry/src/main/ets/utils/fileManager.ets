@@ -5,10 +5,12 @@
 
 import { ChartConfig } from './aiService';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { picker } from '@ohos.file.picker';
+import filePicker from '@ohos.file.picker';
 import fs from '@ohos.file.fs';
 import { util } from '@kit.ArkTS';
 import { ErrorHandler, AppError, ErrorCode } from './errorHandler';
+
+// 直接使用现有的错误代码，在ArkTS中不能动态扩展枚举
 
 export interface ExportOptions {
   filename?: string;
@@ -100,50 +102,60 @@ export class FileManager {
    * @param mimeType MIME类型
    */
   private static async saveTextFile(content: string, filename: string, mimeType: string): Promise<void> {
-    const documentPicker = new picker.DocumentViewPicker();
+    const documentSaveOptions = new filePicker.DocumentSaveOptions();
+    documentSaveOptions.newFileNames = [filename];
+    documentSaveOptions.fileSuffixChoices = ['.json', '.pdf', '.txt'];
+
+    const documentPicker = new filePicker.DocumentViewPicker(documentSaveOptions);
 
     return new Promise<void>((resolve, reject) => {
-      documentPicker.save((err: BusinessError, uri: string) => {
-        if (err) {
-          reject(new AppError(
-            ErrorCode.FILE_WRITE_ERROR,
-            `Failed to save file: ${err.message}`,
-            '文件保存失败，请检查存储权限'
-          ));
-          return;
-        }
+      documentPicker.save().then((uris: string[]) => {
+        if (uris && uris.length > 0) {
+          const uri = uris[0];
+          if (!uri) {
+            reject(new AppError(
+              ErrorCode.FILE_READ_ERROR,
+              'No file URI returned',
+              '文件保存失败，未获得文件路径'
+            ));
+            return;
+          }
 
-        if (!uri) {
+          try {
+            const file = fs.openSync(uri, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE);
+            const buffer = new ArrayBuffer(content.length);
+            const view = new Uint8Array(buffer);
+
+            // 将字符串转换为字节数组
+            for (let i = 0; i < content.length; i++) {
+              view[i] = content.charCodeAt(i);
+            }
+
+            fs.writeSync(file.fd, buffer);
+            fs.closeSync(file);
+
+            console.log(`文件保存成功: ${uri}`);
+            resolve();
+          } catch (writeError) {
+            reject(new AppError(
+              ErrorCode.FILE_READ_ERROR,
+              `Write operation failed: ${writeError}`,
+              '文件写入失败'
+            ));
+          }
+        } else {
           reject(new AppError(
-            ErrorCode.FILE_WRITE_ERROR,
+            ErrorCode.FILE_READ_ERROR,
             'No file URI returned',
             '文件保存失败，未获得文件路径'
           ));
-          return;
         }
-
-        try {
-          const file = fs.openSync(uri, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE);
-          const buffer = new ArrayBuffer(content.length);
-          const view = new Uint8Array(buffer);
-
-          // 将字符串转换为字节数组
-          for (let i = 0; i < content.length; i++) {
-            view[i] = content.charCodeAt(i);
-          }
-
-          fs.writeSync(file.fd, buffer);
-          fs.closeSync(file);
-
-          console.log(`文件保存成功: ${uri}`);
-          resolve();
-        } catch (writeError) {
-          reject(new AppError(
-            ErrorCode.FILE_WRITE_ERROR,
-            `Write operation failed: ${writeError}`,
-            '文件写入失败'
-          ));
-        }
+      }).catch((err: BusinessError) => {
+        reject(new AppError(
+          ErrorCode.FILE_READ_ERROR,
+          `Failed to save file: ${err.message}`,
+          '文件保存失败，请检查存储权限'
+        ));
       });
     });
   }
@@ -155,42 +167,52 @@ export class FileManager {
    * @param mimeType MIME类型
    */
   private static async saveBinaryFile(buffer: ArrayBuffer, filename: string, mimeType: string): Promise<void> {
-    const documentPicker = new picker.DocumentViewPicker();
+    const documentSaveOptions = new filePicker.DocumentSaveOptions();
+    documentSaveOptions.newFileNames = [filename];
+    documentSaveOptions.fileSuffixChoices = ['.png', '.jpg', '.jpeg'];
+
+    const documentPicker = new filePicker.DocumentViewPicker(documentSaveOptions);
 
     return new Promise<void>((resolve, reject) => {
-      documentPicker.save((err: BusinessError, uri: string) => {
-        if (err) {
-          reject(new AppError(
-            ErrorCode.FILE_WRITE_ERROR,
-            `Failed to save file: ${err.message}`,
-            '文件保存失败，请检查存储权限'
-          ));
-          return;
-        }
+      documentPicker.save().then((uris: string[]) => {
+        if (uris && uris.length > 0) {
+          const uri = uris[0];
+          if (!uri) {
+            reject(new AppError(
+              ErrorCode.FILE_READ_ERROR,
+              'No file URI returned',
+              '文件保存失败，未获得文件路径'
+            ));
+            return;
+          }
 
-        if (!uri) {
+          try {
+            const file = fs.openSync(uri, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE);
+            fs.writeSync(file.fd, buffer);
+            fs.closeSync(file);
+
+            console.log(`文件保存成功: ${uri}`);
+            resolve();
+          } catch (writeError) {
+            reject(new AppError(
+              ErrorCode.FILE_READ_ERROR,
+              `Write operation failed: ${writeError}`,
+              '文件写入失败'
+            ));
+          }
+        } else {
           reject(new AppError(
-            ErrorCode.FILE_WRITE_ERROR,
+            ErrorCode.FILE_READ_ERROR,
             'No file URI returned',
             '文件保存失败，未获得文件路径'
           ));
-          return;
         }
-
-        try {
-          const file = fs.openSync(uri, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE);
-          fs.writeSync(file.fd, buffer);
-          fs.closeSync(file);
-
-          console.log(`文件保存成功: ${uri}`);
-          resolve();
-        } catch (writeError) {
-          reject(new AppError(
-            ErrorCode.FILE_WRITE_ERROR,
-            `Write operation failed: ${writeError}`,
-            '文件写入失败'
-          ));
-        }
+      }).catch((err: BusinessError) => {
+        reject(new AppError(
+          ErrorCode.FILE_READ_ERROR,
+          `Failed to save file: ${err.message}`,
+          '文件保存失败，请检查存储权限'
+        ));
       });
     });
   }
@@ -221,14 +243,36 @@ export class FileManager {
    * @param base64 base64编码字符串
    */
   private static base64ToArrayBuffer(base64: string): ArrayBuffer {
-    const binaryString = atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
+    try {
+      // 使用HarmonyOS的util工具进行base64解码
+      const helper = new util.Base64Helper();
+      const result = helper.decodeSync(base64);
+      return result;
+    } catch (error) {
+      // 如果上述方法不可用，使用手动实现
+      const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+      let result = new Uint8Array(Math.floor(base64.length * 3 / 4));
+      let bufferIndex = 0;
 
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
+      for (let i = 0; i < base64.length; i += 4) {
+        const encoded1 = base64Chars.indexOf(base64.charAt(i));
+        const encoded2 = base64Chars.indexOf(base64.charAt(i + 1) || '=');
+        const encoded3 = base64Chars.indexOf(base64.charAt(i + 2) || '=');
+        const encoded4 = base64Chars.indexOf(base64.charAt(i + 3) || '=');
+
+        const bitmap = (encoded1 << 18) | (encoded2 << 12) | (encoded3 << 6) | encoded4;
+
+        result[bufferIndex++] = (bitmap >> 16) & 255;
+        if (i + 2 < base64.length && base64.charAt(i + 2) !== '=') {
+          result[bufferIndex++] = (bitmap >> 8) & 255;
+        }
+        if (i + 3 < base64.length && base64.charAt(i + 3) !== '=') {
+          result[bufferIndex++] = bitmap & 255;
+        }
+      }
+
+      return result.buffer.slice(0, bufferIndex);
     }
-
-    return bytes.buffer;
   }
 
   /**

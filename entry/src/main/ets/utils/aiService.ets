@@ -9,6 +9,61 @@ import { httpClient, handleHttpError, RequestManager } from './httpClient';
 import { ErrorHandler, AppError, ErrorCode } from './errorHandler';
 import { isChartConfig, isValidUserData, validateAndCleanString } from './typeGuard';
 
+// 自定义取消令牌，替代AbortSignal
+export interface CancellationToken {
+  cancelled: boolean;
+  cancel(): void;
+  onCancel(callback: () => void): void;
+}
+
+// 自定义取消异常，替代DOMException
+class OperationCancelledException extends Error {
+  constructor(message: string = '操作已取消') {
+    super(message);
+    this.name = 'OperationCancelledException';
+  }
+}
+
+class CancellationTokenImpl implements CancellationToken {
+  public cancelled = false;
+  private callbacks: (() => void)[] = [];
+
+  cancel(): void {
+    if (!this.cancelled) {
+      this.cancelled = true;
+      for (const callback of this.callbacks) {
+        callback();
+      }
+      this.callbacks = [];
+    }
+  }
+
+  onCancel(callback: () => void): void {
+    if (this.cancelled) {
+      callback();
+    } else {
+      this.callbacks.push(callback);
+    }
+  }
+}
+
+// 明确的数据点接口
+export interface EChartsDataPoint {
+  name: string;
+  value: number | string;
+}
+
+// 明确的格式化参数接口
+export interface EChartsFormatterParams {
+  name: string;
+  value: number | string;
+  componentType?: string;
+  seriesType?: string;
+  seriesName?: string;
+  seriesIndex?: number;
+  dataIndex?: number;
+}
+
 export interface EChartsTitle {
   text?: string;
   subtext?: string;
@@ -35,7 +90,7 @@ export interface EChartsAxis {
 export interface EChartsSeriesItem {
   type: string;
   name?: string;
-  data?: number[] | Array<{name: string, value: any}> | any[];
+  data?: number[] | EChartsDataPoint[] | unknown[];
   xAxisIndex?: number;
   yAxisIndex?: number;
   color?: string | string[];
@@ -47,7 +102,7 @@ export interface EChartsSeriesItem {
   label?: {
     show?: boolean;
     position?: 'top' | 'left' | 'right' | 'bottom' | 'inside' | 'outside';
-    formatter?: string | ((params: any) => string);
+    formatter?: string | ((params: EChartsFormatterParams) => string);
   };
 }
 
@@ -85,10 +140,14 @@ export interface ChartConfig {
 
 export interface CSVData {
   headers: string[];
-  data: ReadonlyArray<Record<string, string>>;
+  data: CSVDataRow[];
 }
 
-export type UserData = string | Record<string, string | number | boolean | null> | CSVData;
+interface CSVDataRow {
+  values: string[];
+}
+
+export type UserData = string | object | CSVData;
 
 export interface ErrorResponse { code: string; message?: string; errors?: string[] }
 
@@ -97,11 +156,11 @@ let lastGeneratedConfig: ChartConfig | null = null;
 /**
  * 生成图表配置
  * @param userData 用户输入的数据（CSV解析后的对象、结构化JSON或字符串）
- * @param signal AbortSignal用于取消操作
+ * @param token CancellationToken用于取消操作
  * @returns Promise<ChartConfig> ECharts配置对象
  * @throws {AppError} 当API调用失败或返回错误时
  */
-export async function generateChart(userData: UserData, signal?: AbortSignal): Promise<ChartConfig> {
+export async function generateChart(userData: UserData, token?: CancellationToken): Promise<ChartConfig> {
   // 1. 输入验证
   if (!isValidUserData(userData)) {
     throw new AppError(
@@ -121,8 +180,8 @@ export async function generateChart(userData: UserData, signal?: AbortSignal): P
   }
 
   // 检查取消信号
-  if (signal?.aborted) {
-    throw new DOMException('Operation cancelled', 'AbortError');
+  if (token?.cancelled) {
+    throw new OperationCancelledException();
   }
 
   const url = getEdgeUrl();
@@ -130,8 +189,23 @@ export async function generateChart(userData: UserData, signal?: AbortSignal): P
   const timer = startTimer('chart_generation_client');
 
   try {
-    // 使用清理后的数据，传递取消信号
-    const response = await httpClient.supabasePost('/functions/v1/generate_chart_qwen', JSON.stringify(cleanedData), { signal });
+    // 使用清理后的数据，创建自定义HTTP客户端实例以处理取消
+    const requestManager = new RequestManager('generateChart');
+
+    // 设置取消检查
+    let cancelled = false;
+    if (token) {
+      token.onCancel(() => {
+        cancelled = true;
+        requestManager.cleanup();
+      });
+    }
+
+    const response = await httpClient.supabasePost('/functions/v1/generate_chart_qwen', JSON.stringify(cleanedData));
+
+    if (cancelled) {
+      throw new OperationCancelledException();
+    }
 
     if (response.status < 200 || response.status >= 300) {
       let errorData: ErrorResponse = { code: 'UNKNOWN_ERROR' };
@@ -175,7 +249,7 @@ export async function generateChart(userData: UserData, signal?: AbortSignal): P
       const appError = new AppError(
         errorCode,
         `API error: ${errorData.code}`,
-        ErrorHandler['ERROR_MESSAGES'][errorCode],
+        'API调用失败，请稍后重试',
         errorData
       );
       ErrorHandler.reportError(appError);

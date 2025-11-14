@@ -5,12 +5,14 @@
 
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
+interface MemoryUsage {
+  total: number;
+  used: number;
+  percentage: number;
+}
+
 export interface PerformanceMetrics {
-  memoryUsage: {
-    total: number;
-    used: number;
-    percentage: number;
-  };
+  memoryUsage: MemoryUsage;
   cpuUsage: number;
   frameRate: number;
   networkLatency: number;
@@ -75,29 +77,33 @@ export class PerformanceMonitor {
    * 获取当前性能指标
    */
   private getCurrentMetrics(): PerformanceMetrics {
-    return {
+    const metrics: PerformanceMetrics = {
       memoryUsage: this.getMemoryUsage(),
       cpuUsage: this.getCpuUsage(),
       frameRate: this.getFrameRate(),
       networkLatency: this.getNetworkLatency(),
       renderTime: this.getRenderTime()
     };
+
+    return metrics;
   }
 
   /**
    * 获取内存使用情况
    */
-  private getMemoryUsage() {
+  private getMemoryUsage(): MemoryUsage {
     // 这里应该使用HarmonyOS的内存API
     // 目前使用模拟数据
     const total = 1024 * 1024 * 1024; // 1GB
     const used = Math.random() * total * 0.7; // 最多70%使用率
 
-    return {
+    const memoryUsage: MemoryUsage = {
       total,
       used,
       percentage: (used / total) * 100
     };
+
+    return memoryUsage;
   }
 
   /**
@@ -163,36 +169,34 @@ export class PerformanceMonitor {
    * 检查性能警告
    */
   private checkPerformanceWarnings(metrics: PerformanceMetrics): void {
-    const { memoryUsage, cpuUsage, frameRate, networkLatency, renderTime } = metrics;
-
     // 内存使用率过高警告
-    if (memoryUsage.percentage > 80) {
+    if (metrics.memoryUsage.percentage > 80) {
       hilog.warn(0x0000, 'PerformanceMonitor',
-        `内存使用率过高: ${memoryUsage.percentage.toFixed(1)}%`);
+        `内存使用率过高: ${metrics.memoryUsage.percentage.toFixed(1)}%`);
     }
 
     // CPU使用率过高警告
-    if (cpuUsage > 70) {
+    if (metrics.cpuUsage > 70) {
       hilog.warn(0x0000, 'PerformanceMonitor',
-        `CPU使用率过高: ${cpuUsage.toFixed(1)}%`);
+        `CPU使用率过高: ${metrics.cpuUsage.toFixed(1)}%`);
     }
 
     // 帧率过低警告
-    if (frameRate < 30) {
+    if (metrics.frameRate < 30) {
       hilog.warn(0x0000, 'PerformanceMonitor',
-        `帧率过低: ${frameRate}fps`);
+        `帧率过低: ${metrics.frameRate}fps`);
     }
 
     // 网络延迟过高警告
-    if (networkLatency > 1000) {
+    if (metrics.networkLatency > 1000) {
       hilog.warn(0x0000, 'PerformanceMonitor',
-        `网络延迟过高: ${networkLatency.toFixed(0)}ms`);
+        `网络延迟过高: ${metrics.networkLatency.toFixed(0)}ms`);
     }
 
     // 渲染时间过长警告
-    if (renderTime > 33) { // 超过30fps对应的渲染时间
+    if (metrics.renderTime > 33) { // 超过30fps对应的渲染时间
       hilog.warn(0x0000, 'PerformanceMonitor',
-        `渲染时间过长: ${renderTime.toFixed(1)}ms`);
+        `渲染时间过长: ${metrics.renderTime.toFixed(1)}ms`);
     }
   }
 
@@ -204,36 +208,39 @@ export class PerformanceMonitor {
       return null;
     }
 
-    const sum = this.metrics.reduce((acc, metrics) => ({
-      memoryUsage: {
-        total: metrics.memoryUsage.total,
-        used: acc.memoryUsage.used + metrics.memoryUsage.used,
-        percentage: acc.memoryUsage.percentage + metrics.memoryUsage.percentage
-      },
-      cpuUsage: acc.cpuUsage + metrics.cpuUsage,
-      frameRate: acc.frameRate + metrics.frameRate,
-      networkLatency: acc.networkLatency + metrics.networkLatency,
-      renderTime: acc.renderTime + metrics.renderTime
-    }), {
-      memoryUsage: { total: 0, used: 0, percentage: 0 },
-      cpuUsage: 0,
-      frameRate: 0,
-      networkLatency: 0,
-      renderTime: 0
-    });
+    let memoryUsedTotal = 0;
+    let memoryPercentageTotal = 0;
+    let cpuUsageTotal = 0;
+    let frameRateTotal = 0;
+    let networkLatencyTotal = 0;
+    let renderTimeTotal = 0;
+    let memoryTotal = this.metrics[0].memoryUsage.total;
+
+    // 使用循环替代reduce
+    for (let i = 0; i < this.metrics.length; i++) {
+      const metrics = this.metrics[i];
+      memoryUsedTotal += metrics.memoryUsage.used;
+      memoryPercentageTotal += metrics.memoryUsage.percentage;
+      cpuUsageTotal += metrics.cpuUsage;
+      frameRateTotal += metrics.frameRate;
+      networkLatencyTotal += metrics.networkLatency;
+      renderTimeTotal += metrics.renderTime;
+    }
 
     const count = this.metrics.length;
-    return {
+    const avgMetrics: PerformanceMetrics = {
       memoryUsage: {
-        total: sum.memoryUsage.total,
-        used: sum.memoryUsage.used / count,
-        percentage: sum.memoryUsage.percentage / count
+        total: memoryTotal,
+        used: memoryUsedTotal / count,
+        percentage: memoryPercentageTotal / count
       },
-      cpuUsage: sum.cpuUsage / count,
-      frameRate: sum.frameRate / count,
-      networkLatency: sum.networkLatency / count,
-      renderTime: sum.renderTime / count
+      cpuUsage: cpuUsageTotal / count,
+      frameRate: frameRateTotal / count,
+      networkLatency: networkLatencyTotal / count,
+      renderTime: renderTimeTotal / count
     };
+
+    return avgMetrics;
   }
 
   /**

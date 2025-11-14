@@ -3,13 +3,39 @@
  * @module typeGuard
  */
 
-import { ChartConfig, EChartsTitle, EChartsSeriesItem } from './aiService';
-import { CSVData } from './aiService';
+// 定义接口以替代object literals
+interface EChartsTitle {
+  text?: string;
+}
+
+interface EChartsSeriesItem {
+  type: string;
+  data?: unknown[];
+}
+
+interface ChartConfig {
+  title?: EChartsTitle;
+  series: EChartsSeriesItem[];
+}
+
+interface CSVData {
+  headers: string[];
+  data: CSVDataRow[];
+}
+
+interface CSVDataRow {
+  values: string[]; // 替换索引签名为数组结构
+}
+
+interface KeyValueItem {
+  name: string;
+  value: unknown;
+}
 
 /**
  * 验证是否为ECharts标题配置
  */
-export function isEChartsTitle(obj: unknown): obj is EChartsTitle {
+export function isEChartsTitle(obj: unknown): boolean {
   if (typeof obj !== 'object' || obj === null) {
     return false;
   }
@@ -21,7 +47,7 @@ export function isEChartsTitle(obj: unknown): obj is EChartsTitle {
 /**
  * 验证是否为ECharts系列配置
  */
-export function isEChartsSeriesItem(obj: unknown): obj is EChartsSeriesItem {
+export function isEChartsSeriesItem(obj: unknown): boolean {
   if (typeof obj !== 'object' || obj === null) {
     return false;
   }
@@ -33,7 +59,7 @@ export function isEChartsSeriesItem(obj: unknown): obj is EChartsSeriesItem {
 /**
  * 验证是否为完整的ChartConfig
  */
-export function isChartConfig(obj: unknown): obj is ChartConfig {
+export function isChartConfig(obj: unknown): boolean {
   if (typeof obj !== 'object' || obj === null) {
     return false;
   }
@@ -51,35 +77,58 @@ export function isChartConfig(obj: unknown): obj is ChartConfig {
   }
 
   // 验证每个series项
-  return config.series.every(item => isEChartsSeriesItem(item));
+  for (let i = 0; i < config.series.length; i++) {
+    if (!isEChartsSeriesItem(config.series[i])) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 /**
  * 验证是否为CSVData
  */
-export function isCSVData(obj: unknown): obj is CSVData {
+export function isCSVData(obj: unknown): boolean {
   if (typeof obj !== 'object' || obj === null) {
     return false;
   }
 
   const csv = obj as CSVData;
 
-  return (
-    Array.isArray(csv.headers) &&
-    csv.headers.every(header => typeof header === 'string') &&
-    Array.isArray(csv.data) &&
-    csv.data.every(row =>
-      typeof row === 'object' &&
-      row !== null &&
-      Object.values(row).every(value => typeof value === 'string')
-    )
-  );
+  // 验证headers
+  if (!Array.isArray(csv.headers)) {
+    return false;
+  }
+  for (let i = 0; i < csv.headers.length; i++) {
+    if (typeof csv.headers[i] !== 'string') {
+      return false;
+    }
+  }
+
+  // 验证data
+  if (!Array.isArray(csv.data)) {
+    return false;
+  }
+  for (let i = 0; i < csv.data.length; i++) {
+    const row = csv.data[i];
+    if (!Array.isArray(row.values)) {
+      return false;
+    }
+    for (let j = 0; j < row.values.length; j++) {
+      if (typeof row.values[j] !== 'string') {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 /**
  * 验证是否为有效的UserData
  */
-export function isValidUserData(obj: unknown): obj is string | Record<string, any> | CSVData {
+export function isValidUserData(obj: unknown): boolean {
   // 字符串类型
   if (typeof obj === 'string') {
     return obj.length > 0 && obj.length <= 100000; // 限制最大长度
@@ -93,8 +142,8 @@ export function isValidUserData(obj: unknown): obj is string | Record<string, an
     }
 
     // 检查是否为普通对象
-    const record = obj as Record<string, any>;
-    return Object.keys(record).length <= 100; // 限制键的数量
+    const keys = Object.keys(obj);
+    return keys.length <= 100; // 限制键的数量
   }
 
   return false;
@@ -105,11 +154,11 @@ export function isValidUserData(obj: unknown): obj is string | Record<string, an
  */
 export function safeCast<T>(
   value: unknown,
-  validator: (obj: unknown) => obj is T,
+  validator: (obj: unknown) => boolean,
   errorMessage?: string
 ): T {
   if (validator(value)) {
-    return value;
+    return value as T;
   }
 
   throw new Error(errorMessage || `类型转换失败: ${typeof value}`);
@@ -158,44 +207,62 @@ export function isValidColor(color: string): boolean {
 /**
  * 验证数值
  */
-export function isValidNumber(value: unknown): value is number {
+export function isValidNumber(value: unknown): boolean {
   return typeof value === 'number' && !isNaN(value) && isFinite(value);
 }
 
 /**
  * 验证数值数组
  */
-export function isValidNumberArray(arr: unknown): arr is number[] {
+export function isValidNumberArray(arr: unknown): boolean {
   if (!Array.isArray(arr)) {
     return false;
   }
 
-  return arr.every(item => isValidNumber(item));
+  for (let i = 0; i < arr.length; i++) {
+    if (!isValidNumber(arr[i])) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 /**
  * 验证字符串数组
  */
-export function isValidStringArray(arr: unknown): arr is string[] {
+export function isValidStringArray(arr: unknown): boolean {
   if (!Array.isArray(arr)) {
     return false;
   }
 
-  return arr.every(item => typeof item === 'string');
+  for (let i = 0; i < arr.length; i++) {
+    if (typeof arr[i] !== 'string') {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 /**
  * 验证对象键值对数组
  */
-export function isValidKeyValueArray(arr: unknown): arr is Array<{name: string, value: any}> {
+export function isValidKeyValueArray(arr: unknown): boolean {
   if (!Array.isArray(arr)) {
     return false;
   }
 
-  return arr.every(item =>
-    typeof item === 'object' &&
-    item !== null &&
-    'name' in item &&
-    typeof item.name === 'string'
-  );
+  for (let i = 0; i < arr.length; i++) {
+    const item = arr[i];
+    if (typeof item !== 'object' || item === null) {
+      return false;
+    }
+    const keyValueItem = item as { name?: unknown; value?: unknown };
+    if (!keyValueItem.name || typeof keyValueItem.name !== 'string') {
+      return false;
+    }
+  }
+
+  return true;
 }

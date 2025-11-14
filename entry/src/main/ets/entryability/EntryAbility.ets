@@ -6,6 +6,12 @@ import util from '@ohos.util';
 
 const DOMAIN = 0x0000;
 
+// Supabase配置接口
+interface SupabaseConfig {
+  supabaseUrl?: string;
+  anonKey?: string;
+}
+
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     try {
@@ -19,11 +25,11 @@ export default class EntryAbility extends UIAbility {
     try {
       const rm = this.context.resourceManager;
       const bytes: Uint8Array = rm.getRawFileContentSync('supabase.json');
-      const decoder = new util.TextDecoder('utf-8', { ignoreBOM: true });
+      const decoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
       const text: string = decoder.decode(bytes);
-      const parsed = JSON.parse(text) as Record<string, string>;
-      const url: string | undefined = parsed && typeof parsed['supabaseUrl'] === 'string' ? parsed['supabaseUrl'] : undefined;
-      const anon: string | undefined = parsed && typeof parsed['anonKey'] === 'string' ? parsed['anonKey'] : undefined;
+      const parsed = JSON.parse(text) as SupabaseConfig;
+      const url: string | undefined = parsed?.supabaseUrl;
+      const anon: string | undefined = parsed?.anonKey;
       setAppConfig({
         supabaseUrl: url,
         supabaseAnonKey: anon,

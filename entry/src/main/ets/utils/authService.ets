@@ -13,6 +13,73 @@ export interface User {
   created_at?: string;
 }
 
+// Supabase specific interfaces
+interface SupabaseUser {
+  id: string;
+  email: string;
+  created_at?: string;
+}
+
+interface SupabaseSession {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+}
+
+interface SupabaseAuthResponse {
+  user?: SupabaseUser;
+  session?: SupabaseSession;
+  access_token?: string;
+}
+
+interface SupabaseErrorResponse {
+  msg?: string;
+  error?: string;
+  error_description?: string;
+}
+
+interface AuthRequestHeaders {
+  'Content-Type': string;
+  'apikey': string;
+  'Authorization': string;
+}
+
+// 注册和登录请求数据接口
+interface SignUpRequestData {
+  email: string;
+  password: string;
+  gotrue_meta_security: GotrueMetaSecurity;
+}
+
+interface SignInRequestData {
+  email: string;
+  password: string;
+}
+
+interface GotrueMetaSecurity {
+  captcha_token: string;
+}
+
+interface RefreshTokenRequestData {
+  refresh_token: string;
+}
+
+// 认证响应结果接口
+interface AuthResult {
+  user: User | null;
+  error: Error | null;
+}
+
+interface AuthSessionResult {
+  error: Error | null;
+}
+
+// 用户查询结果接口
+interface UserSessionResult {
+  user: User | null;
+  error: Error | null;
+}
+
 export interface AuthState {
   user: User | null;
   isLoading: boolean;
@@ -27,6 +94,14 @@ export interface SignInCredentials {
 export interface SignUpCredentials {
   email: string;
   password: string;
+}
+
+// 导出认证结果接口供其他文件使用
+export { AuthResult, AuthSessionResult, UserSessionResult };
+
+interface AuthRequestOptions {
+  method: string;
+  body?: string;
 }
 
 class AuthService {
@@ -61,60 +136,69 @@ class AuthService {
   /**
    * 用户注册
    */
-  async signUp(credentials: SignUpCredentials): Promise<{ user: User | null; error: Error | null }> {
+  async signUp(credentials: SignUpCredentials): Promise<AuthResult> {
     try {
-      const response = await this.makeAuthRequest('/auth/v1/signup', {
+      const requestData: SignUpRequestData = {
+        email: credentials.email,
+        password: credentials.password,
+        gotrue_meta_security: {
+          captcha_token: ''
+        }
+      };
+
+      const options: AuthRequestOptions = {
         method: 'POST',
-        body: JSON.stringify({
-          email: credentials.email,
-          password: credentials.password,
-          gotrue_meta_security: {
-            captcha_token: ''
-          }
-        })
-      });
+        body: JSON.stringify(requestData)
+      };
+
+      const response = await this.makeAuthRequest('/auth/v1/signup', options);
 
       if (response.responseCode === 200) {
-        const result = JSON.parse(response.result as string);
-        const user = result.user;
+        const result = this.parseAuthResponse(response.result as string);
 
-        if (user && result.session) {
+        if (result.user && result.session) {
           this.currentUser = {
-            id: user.id,
-            email: user.email,
-            created_at: user.created_at
+            id: result.user.id,
+            email: result.user.email,
+            created_at: result.user.created_at
           };
           this.sessionToken = result.session.access_token;
 
           return { user: this.currentUser, error: null };
         }
       } else {
-        const errorData = JSON.parse(response.result as string);
-        throw new Error(errorData.msg || '注册失败');
+        const errorData = this.parseErrorResponse(response.result as string);
+        const errorMsg = errorData.msg || errorData.error || '注册失败';
+        throw new Error(errorMsg);
       }
 
       return { user: null, error: new Error('注册失败') };
     } catch (error) {
       console.error('注册失败:', error);
-      return { user: null, error: error instanceof Error ? error : new Error('注册失败') };
+      const authError = error instanceof Error ? error : new Error('注册失败');
+      return { user: null, error: authError };
     }
   }
 
   /**
    * 用户登录
    */
-  async signIn(credentials: SignInCredentials): Promise<{ user: User | null; error: Error | null }> {
+  async signIn(credentials: SignInCredentials): Promise<AuthResult> {
     try {
-      const response = await this.makeAuthRequest('/auth/v1/token?grant_type=password', {
+      const requestData: SignInRequestData = {
+        email: credentials.email,
+        password: credentials.password
+      };
+
+      const options: AuthRequestOptions = {
         method: 'POST',
-        body: JSON.stringify({
-          email: credentials.email,
-          password: credentials.password
-        })
-      });
+        body: JSON.stringify(requestData)
+      };
+
+      const response = await this.makeAuthRequest('/auth/v1/token?grant_type=password', options);
 
       if (response.responseCode === 200) {
-        const result = JSON.parse(response.result as string);
+        const result = this.parseAuthResponse(response.result as string);
 
         if (result.user && result.access_token) {
           this.currentUser = {
@@ -127,26 +211,29 @@ class AuthService {
           return { user: this.currentUser, error: null };
         }
       } else {
-        const errorData = JSON.parse(response.result as string);
-        throw new Error(errorData.msg || '登录失败');
+        const errorData = this.parseErrorResponse(response.result as string);
+        const errorMsg = errorData.msg || errorData.error || '登录失败';
+        throw new Error(errorMsg);
       }
 
       return { user: null, error: new Error('登录失败') };
     } catch (error) {
       console.error('登录失败:', error);
-      return { user: null, error: error instanceof Error ? error : new Error('登录失败') };
+      const authError = error instanceof Error ? error : new Error('登录失败');
+      return { user: null, error: authError };
     }
   }
 
   /**
    * 用户登出
    */
-  async signOut(): Promise<{ error: Error | null }> {
+  async signOut(): Promise<AuthSessionResult> {
     try {
       if (this.sessionToken) {
-        await this.makeAuthRequest('/auth/v1/logout', {
+        const options: AuthRequestOptions = {
           method: 'POST'
-        });
+        };
+        await this.makeAuthRequest('/auth/v1/logout', options);
       }
 
       this.currentUser = null;
@@ -158,28 +245,33 @@ class AuthService {
       // 即使网络请求失败，也要清除本地状态
       this.currentUser = null;
       this.sessionToken = null;
-      return { error: error instanceof Error ? error : new Error('登出失败') };
+      const authError = error instanceof Error ? error : new Error('登出失败');
+      return { error: authError };
     }
   }
 
   /**
    * 刷新会话
    */
-  async refreshSession(): Promise<{ error: Error | null }> {
+  async refreshSession(): Promise<AuthSessionResult> {
     try {
       if (!this.sessionToken) {
         throw new Error('没有有效的会话令牌');
       }
 
-      const response = await this.makeAuthRequest('/auth/v1/token?grant_type=refresh_token', {
+      const requestData: RefreshTokenRequestData = {
+        refresh_token: this.sessionToken
+      };
+
+      const options: AuthRequestOptions = {
         method: 'POST',
-        body: JSON.stringify({
-          refresh_token: this.sessionToken
-        })
-      });
+        body: JSON.stringify(requestData)
+      };
+
+      const response = await this.makeAuthRequest('/auth/v1/token?grant_type=refresh_token', options);
 
       if (response.responseCode === 200) {
-        const result = JSON.parse(response.result as string);
+        const result = this.parseAuthResponse(response.result as string);
 
         if (result.access_token && result.user) {
           this.sessionToken = result.access_token;
@@ -196,31 +288,40 @@ class AuthService {
       console.error('刷新会话失败:', error);
       this.currentUser = null;
       this.sessionToken = null;
-      return { error: error instanceof Error ? error : new Error('刷新会话失败') };
+      const authError = error instanceof Error ? error : new Error('刷新会话失败');
+      return { error: authError };
     }
   }
 
   /**
    * 检查会话状态
    */
-  async checkSession(): Promise<{ user: User | null; error: Error | null }> {
+  async checkSession(): Promise<UserSessionResult> {
     try {
       if (!this.sessionToken) {
         return { user: null, error: null };
       }
 
-      const response = await this.makeAuthRequest('/auth/v1/user', {
+      const options: AuthRequestOptions = {
         method: 'GET'
-      });
+      };
+
+      const response = await this.makeAuthRequest('/auth/v1/user', options);
 
       if (response.responseCode === 200) {
-        const user = JSON.parse(response.result as string);
-        this.currentUser = {
-          id: user.id,
-          email: user.email,
-          created_at: user.created_at
-        };
-        return { user: this.currentUser, error: null };
+        const result = this.parseAuthResponse(response.result as string);
+        if (result.user) {
+          this.currentUser = {
+            id: result.user.id,
+            email: result.user.email,
+            created_at: result.user.created_at
+          };
+          return { user: this.currentUser, error: null };
+        } else {
+          this.currentUser = null;
+          this.sessionToken = null;
+          return { user: null, error: new Error('用户信息解析失败') };
+        }
       } else {
         this.currentUser = null;
         this.sessionToken = null;
@@ -230,17 +331,15 @@ class AuthService {
       console.error('检查会话失败:', error);
       this.currentUser = null;
       this.sessionToken = null;
-      return { user: null, error: error instanceof Error ? error : new Error('检查会话失败') };
+      const authError = error instanceof Error ? error : new Error('检查会话失败');
+      return { user: null, error: authError };
     }
   }
 
   /**
    * 发起认证请求的通用方法
    */
-  private async makeAuthRequest(path: string, options: {
-    method: string;
-    body?: string;
-  }): Promise<http.Response> {
+  private async makeAuthRequest(path: string, options: AuthRequestOptions): Promise<http.HttpResponse> {
     const cfg = getAppConfig();
     const supabaseUrl = cfg.supabaseUrl || 'https://ugeyrsnrmxjyoflkaapk.supabase.co';
     const anonKey = cfg.supabaseAnonKey || '';
@@ -249,13 +348,15 @@ class AuthService {
     const httpRequest = http.createHttp();
 
     try {
+      const headers: AuthRequestHeaders = {
+        'Content-Type': 'application/json',
+        'apikey': anonKey,
+        'Authorization': this.sessionToken ? `Bearer ${this.sessionToken}` : `Bearer ${anonKey}`,
+      };
+
       const response = await httpRequest.request(url, {
-        method: options.method,
-        header: {
-          'Content-Type': 'application/json',
-          'apikey': anonKey,
-          'Authorization': this.sessionToken ? `Bearer ${this.sessionToken}` : `Bearer ${anonKey}`,
-        },
+        method: options.method as http.RequestMethod || http.RequestMethod.GET,
+        header: headers,
         extraData: options.body,
         readTimeout: 10000,
         connectTimeout: 6000,
@@ -272,6 +373,28 @@ class AuthService {
    */
   getUserId(): string {
     return this.currentUser?.id || 'anonymous';
+  }
+
+  /**
+   * 解析认证响应
+   */
+  private parseAuthResponse(response: string): SupabaseAuthResponse {
+    try {
+      return JSON.parse(response) as SupabaseAuthResponse;
+    } catch (error) {
+      throw new Error('响应解析失败');
+    }
+  }
+
+  /**
+   * 解析错误响应
+   */
+  private parseErrorResponse(response: string): SupabaseErrorResponse {
+    try {
+      return JSON.parse(response) as SupabaseErrorResponse;
+    } catch (error) {
+      return { msg: '未知错误' };
+    }
   }
 }
 

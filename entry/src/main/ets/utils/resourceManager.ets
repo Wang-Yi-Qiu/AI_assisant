@@ -4,13 +4,32 @@
  * @module resourceManager
  */
 
-import { resourceManager } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+
+interface ResourceManagerContext {
+  resourceManager: {
+    getStringValue: (resourceId: string) => Promise<string>;
+    getNumberById: (resourceId: string) => Promise<number>;
+  };
+}
+
+interface AppConfig {
+  version: string;
+  buildNumber: string;
+  isDebug: boolean;
+}
+
+interface DeviceInfo {
+  model: string;
+  brand: string;
+  osVersion: string;
+  screenDensity: number;
+}
 
 export class ResourceManager {
   private static instance: ResourceManager;
-  private context: any = null;
-  private resourceCache: Map<string, any> = new Map();
+  private context: ResourceManagerContext | null = null;
+  private resourceCache: Map<string, string | number> = new Map();
 
   static getInstance(): ResourceManager {
     if (!ResourceManager.instance) {
@@ -22,7 +41,7 @@ export class ResourceManager {
   /**
    * 初始化资源管理器
    */
-  async initialize(context: any): Promise<void> {
+  async initialize(context: ResourceManagerContext): Promise<void> {
     this.context = context;
     try {
       // 预加载常用资源
@@ -63,7 +82,7 @@ export class ResourceManager {
     const cacheKey = `${resourceId}_${params.join('_')}`;
 
     if (this.resourceCache.has(cacheKey)) {
-      return this.resourceCache.get(cacheKey);
+      return this.resourceCache.get(cacheKey) as string;
     }
 
     try {
@@ -77,9 +96,9 @@ export class ResourceManager {
       // 格式化字符串
       let result = value;
       if (params.length > 0) {
-        params.forEach((param, index) => {
-          result = result.replace(`{${index}}`, param);
-        });
+        for (let i = 0; i < params.length; i++) {
+          result = result.replace(`{${i}}`, params[i]);
+        }
       }
 
       // 缓存结果
@@ -99,7 +118,7 @@ export class ResourceManager {
    */
   async getColor(colorId: string): Promise<string> {
     if (this.resourceCache.has(colorId)) {
-      return this.resourceCache.get(colorId);
+      return this.resourceCache.get(colorId) as string;
     }
 
     try {
@@ -161,14 +180,10 @@ export class ResourceManager {
     return this.resourceCache.size;
   }
 
-  /**
+/**
    * 获取应用配置
    */
-  getAppConfig(): {
-    version: string;
-    buildNumber: string;
-    isDebug: boolean;
-  } {
+  getAppConfig(): AppConfig {
     return {
       version: '1.0.0',
       buildNumber: '1',
@@ -179,12 +194,7 @@ export class ResourceManager {
   /**
    * 获取设备信息
    */
-  getDeviceInfo(): {
-    model: string;
-    brand: string;
-    osVersion: string;
-    screenDensity: number;
-  } {
+  getDeviceInfo(): DeviceInfo {
     return {
       model: 'HarmonyOS Device',
       brand: 'Huawei',
@@ -197,8 +207,58 @@ export class ResourceManager {
 // 导出单例实例
 export const resourceManager = ResourceManager.getInstance();
 
+interface ResourceStrings {
+  APP_NAME: string;
+  LOADING: string;
+  ERROR_NETWORK: string;
+  ERROR_TIMEOUT: string;
+  ERROR_FILE_TOO_LARGE: string;
+  ERROR_INVALID_FORMAT: string;
+  BUTTON_GENERATE: string;
+  BUTTON_EXPORT: string;
+  BUTTON_CANCEL: string;
+  BUTTON_RETRY: string;
+  TITLE_HOME: string;
+  TITLE_CHART: string;
+  TITLE_HISTORY: string;
+  MESSAGE_CHART_GENERATED: string;
+  MESSAGE_FILE_UPLOADED: string;
+}
+
+interface ResourceColors {
+  PRIMARY: string;
+  PRIMARY_LIGHT: string;
+  PRIMARY_DARK: string;
+  ACCENT: string;
+  BACKGROUND: string;
+  SURFACE: string;
+  ERROR: string;
+  WARNING: string;
+  SUCCESS: string;
+  TEXT_PRIMARY: string;
+  TEXT_SECONDARY: string;
+}
+
+interface ResourceDimensions {
+  PADDING_SMALL: string;
+  PADDING_MEDIUM: string;
+  PADDING_LARGE: string;
+  MARGIN_SMALL: string;
+  MARGIN_MEDIUM: string;
+  MARGIN_LARGE: string;
+  BORDER_RADIUS_SMALL: string;
+  BORDER_RADIUS_MEDIUM: string;
+  BORDER_RADIUS_LARGE: string;
+}
+
+interface Resources {
+  STRINGS: ResourceStrings;
+  COLORS: ResourceColors;
+  DIMENSIONS: ResourceDimensions;
+}
+
 // 常用资源常量
-export const RESOURCES = {
+export const RESOURCES: Resources = {
   STRINGS: {
     APP_NAME: 'app_name',
     LOADING: 'loading_text',

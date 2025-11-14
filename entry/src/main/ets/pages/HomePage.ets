@@ -3,33 +3,42 @@
  * @module HomePage
  */
 
-import { generateChart, ChartConfig, UserData, CSVData } from '../utils/aiService';
+import { generateChart, ChartConfig, UserData, CSVData, CancellationToken } from '../utils/aiService';
+
+// 用户数据接口 - 避免使用索引签名
+interface UserJSONObject {
+  data: object; // 使用通用对象类型
+}
+
+interface CSVDataRow {
+  values: string[]; // 使用数组结构替代索引签名
+}
 
 /**
  * 从文本输入生成图表
  * @param text 用户输入的文本（可以是JSON字符串、CSV文本等）
- * @param signal AbortSignal用于取消操作
+ * @param token CancellationToken用于取消操作
  * @returns Promise<ChartConfig> 生成的图表配置
  * @throws {Error} 当输入无效或生成失败时
  */
-export async function onGenerateFromText(text: string, signal?: AbortSignal): Promise<ChartConfig> {
+export async function onGenerateFromText(text: string, token?: CancellationToken): Promise<ChartConfig> {
   if (!text || text.trim().length === 0) {
     throw new Error('输入不能为空，请提供数据');
   }
 
   // 检查取消信号
-  if (signal?.aborted) {
-    throw new DOMException('Operation cancelled', 'AbortError');
+  if (token?.cancelled) {
+    throw new Error('操作已取消');
   }
 
   const data = parseUserInput(text.trim());
 
   // 再次检查取消信号
-  if (signal?.aborted) {
-    throw new DOMException('Operation cancelled', 'AbortError');
+  if (token?.cancelled) {
+    throw new Error('操作已取消');
   }
 
-  return await generateChart(data, signal);
+  return await generateChart(data, token);
 }
 
 /**
@@ -54,7 +63,7 @@ export function parseUserInput(text: string): UserData {
   // 尝试解析为JSON
   if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
     try {
-      const parsed = JSON.parse(text) as Record<string, string | number | boolean | null>;
+      const parsed = JSON.parse(text) as object;
       return parsed;
     } catch {
       // JSON解析失败，继续作为原始文本处理
@@ -75,11 +84,7 @@ export function parseCSV(csvText: string): CSVData | string {
   const headers = lines[0].split(',').map(h => h.trim());
   const rows = lines.slice(1).map(line => {
     const values = line.split(',').map(v => v.trim());
-    const obj: Record<string, string> = {};
-    headers.forEach((header, i) => {
-      obj[header] = values[i] || '';
-    });
-    return obj;
+    return { values }; // 使用CSVDataRow接口
   });
 
   const result: CSVData = { headers, data: rows };
@@ -95,7 +100,7 @@ export function parseFileContent(content: string, fileName: string): UserData {
   switch (ext) {
     case 'json':
       try {
-        const parsed = JSON.parse(content) as Record<string, string | number | boolean | null>;
+        const parsed = JSON.parse(content) as object;
         return parsed;
       } catch {
         throw new Error('JSON文件格式无效');

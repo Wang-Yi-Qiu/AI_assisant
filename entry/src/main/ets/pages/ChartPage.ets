@@ -186,7 +186,7 @@ struct ChartPage {
             .type(ButtonType.Normal)
             .fontColor(RESOURCES.COLORS.TEXT_PRIMARY)
             .onClick(() => {
-              router.back();
+              router.pop();
             })
           Text('图表预览')
             .fontSize(20)
@@ -240,13 +240,7 @@ struct ChartPage {
                   // 页面加载完成后应用图表配置
                   this.applyChartConfig();
                 })
-                .onError((error) => {
-                  console.error('WebView 加载错误:', error);
-                  if (!this.isDestroyed) {
-                    this.errorMessage = '图表组件加载失败';
-                  }
-                })
-
+                
               // 控制按钮区域
               Column() {
                 // 第一行按钮

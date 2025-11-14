@@ -202,4 +202,85 @@ curl -X POST https://your-project.supabase.co/functions/v1/generate_chart_qwen \
   -H "Content-Type: application/json" \
   -d '{"data": [{"x": 1, "y": 2}]}'
 ```
+## Latest HarmonyOS Development Updates (2024-2025)
+
+### Version Updates
+- **HarmonyOS 5.0**: Latest stable release with enhanced AI capabilities
+- **API Level 12**: New APIs for AI integration and performance optimization
+- **DevEco Studio 5.0**: Updated IDE with better debugging and profiling tools
+
+### New AI Development Features
+- **HiAI Foundation**: Enhanced on-device AI inference capabilities
+- **LLM Integration**: Built-in support for large language model integration
+- **Neural Network APIs**: Improved neural network processing and optimization
+- **Cross-device AI**: Seamless AI capabilities across HarmonyOS devices
+
+### Breaking Changes & Deprecated APIs
+- **WebView Component**: Updated security model for WebView content loading
+- **File Access**: New permission model for file system access
+- **Network APIs**: Enhanced security requirements for HTTP requests
+- **UI Components**: Deprecated some legacy UI component APIs
+
+### New Security Requirements
+- **Runtime Permissions**: Enhanced permission model for AI features
+- **Data Privacy**: Stricter requirements for user data handling
+- **API Key Security**: Mandatory secure storage for third-party API keys
+- **Network Security**: HTTPS enforcement for all API communications
+
+### Performance Optimization Guidelines
+- **Memory Management**: Improved garbage collection for AI workloads
+- **Battery Optimization**: AI-specific power management features
+- **Thermal Management**: Intelligent throttling for intensive AI operations
+- **Background Processing**: Enhanced background task management for AI inference
+
+### AI Development Best Practices
+
+#### Core Considerations
+1. **Model Selection**: Choose appropriate model sizes based on device capabilities
+2. **Latency Management**: Implement progressive loading and caching strategies
+3. **Resource Optimization**: Monitor CPU, memory, and battery usage
+4. **Error Handling**: Graceful fallbacks for AI service failures
+5. **User Experience**: Provide feedback during AI processing
+
+#### Code Quality Standards
+- **Type Safety**: Strict TypeScript configuration for AI service modules
+- **Async Programming**: Proper async/await patterns for AI API calls
+- **Error Boundaries**: Comprehensive error handling with user-friendly messages
+- **Performance Monitoring**: Built-in metrics collection for AI operations
+- **Testing Strategy**: Unit tests for AI logic, integration tests for API calls
+
+#### Security & Privacy
+- **API Key Management**: Never expose API keys in client-side code
+- **Data Validation**: Strict input validation before AI processing
+- **Output Sanitization**: Validate and sanitize AI-generated content
+- **User Consent**: Clear consent mechanisms for data processing
+- **Audit Logging**: Comprehensive logging for AI operations
+
+#### Platform-Specific Guidelines
+- **ArkTS Optimization**: Leverage ArkTS-specific features for better performance
+- **Component Lifecycle**: Proper management of AI component lifecycle
+- **State Management**: Efficient state handling for AI operation status
+- **Resource Cleanup**: Proper cleanup of AI resources and connections
+
+### Common Pitfalls to Avoid
+1. **Blocking UI Thread**: Never perform AI operations on main thread
+2. **Memory Leaks**: Proper cleanup of AI models and resources
+3. **Network Timeouts**: Implement appropriate timeout handling
+4. **Error Suppression**: Never silently ignore AI service errors
+5. **Over-fetching**: Minimize unnecessary AI API calls
+
+### Recommended Development Workflow
+1. **Prototype First**: Start with simple AI integration
+2. **Iterative Testing**: Test AI features on actual devices
+3. **Performance Profiling**: Use DevEco Studio profiling tools
+4. **User Testing**: Gather feedback on AI feature usability
+5. **Continuous Monitoring**: Monitor AI performance in production
+
+### Debugging & Monitoring Tools
+- **DevEco Studio Profiler**: CPU, memory, and network profiling
+- **HiAI Debugger**: AI model debugging and optimization
+- **Log Analysis**: Comprehensive logging for AI operations
+- **Performance Metrics**: Built-in performance monitoring
+- **Crash Analytics**: AI-specific crash reporting and analysis
+
 ###After completing the modification project, there is no need to create related files. I will modify them when I need you to. Also, save them with git when making modifications.
