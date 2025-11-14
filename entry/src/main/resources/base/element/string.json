@@ -11,6 +11,10 @@
     {
       "name": "EntryAbility_label",
       "value": "label"
+    },
+    {
+      "name": "permission_reason_read_write_download",
+      "value": "需要读取用户上传的数据文件"
     }
   ]
 }

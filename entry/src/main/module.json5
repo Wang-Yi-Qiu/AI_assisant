@@ -16,7 +16,7 @@
       },
       {
         "name": "ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY",
-        "reason": "需要读取用户上传的数据文件",
+        "reason": "$string:permission_reason_read_write_download",
         "usedScene": {
           "abilities": [
             "EntryAbility"
