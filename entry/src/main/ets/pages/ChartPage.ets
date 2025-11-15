@@ -9,44 +9,118 @@ let webviewController: webview.WebviewController | null = null;
 
 /**
  * 设置图表配置（供其他页面调用）
+ * 增强版本：包含重试机制和详细错误处理
  */
 export function setChartOption(config: ChartConfig): void {
-  console.info('[ChartPage] setChartOption 被调用，配置:', JSON.stringify(config).substring(0, 200));
+  console.info('[ChartPage] ========== setChartOption 开始执行 ==========');
+  console.info('[ChartPage] 配置类型:', typeof config);
+  console.info('[ChartPage] 配置预览:', JSON.stringify(config).substring(0, 200));
+
   globalChartConfig = config;
-  
+
   // 如果 WebView 已经加载，立即设置图表配置
   if (webviewController) {
-    console.info('[ChartPage] WebView 已加载，立即设置图表配置');
-    try {
-      const configJson = JSON.stringify(config);
-      const jsCode = `(function() {
-        try {
-          if (window.chartAPI && window.chartAPI.setOption) {
-            window.chartAPI.setOption(${configJson});
-            console.log('图表配置已通过 setChartOption 设置');
-            return true;
-          } else {
-            console.warn('chartAPI 未初始化，稍后重试');
-            return false;
-          }
-        } catch (e) {
-          console.error('设置图表配置时出错:', e);
-          return false;
-        }
-      })()`;
-      
-      webviewController.runJavaScript(jsCode)
-        .then((result) => {
-          console.info('[ChartPage] 图表配置已设置，结果:', result);
-        })
-        .catch((err: Error) => {
-          console.error('[ChartPage] 设置图表配置失败:', err);
-        });
-    } catch (error) {
-      console.error('[ChartPage] 序列化图表配置失败:', error);
-    }
+    console.info('[ChartPage] WebView 已加载，开始设置图表配置');
+    applyChartConfigWithRetry(config, 0);
   } else {
-    console.info('[ChartPage] WebView 尚未加载，配置已保存，等待页面加载');
+    console.warn('[ChartPage] WebView 尚未加载，配置已保存，等待页面加载');
+  }
+}
+
+/**
+ * 带重试机制的图表配置应用
+ */
+function applyChartConfigWithRetry(config: ChartConfig, retryCount: number): void {
+  const maxRetries = 5;
+  const retryDelay = 500; // 500ms
+
+  console.info(`[ChartPage] 尝试设置图表配置 (第 ${retryCount + 1} 次)`);
+
+  try {
+    const configJson = JSON.stringify(config);
+
+    // 更健壮的JavaScript代码，包含详细的诊断信息
+    const jsCode = `(function() {
+      console.log('=== JavaScript 诊断信息 ===');
+      console.log('window 对象存在:', typeof window !== 'undefined');
+      console.log('chartAPI 存在:', typeof window.chartAPI !== 'undefined');
+      console.log('setOption 存在:', window.chartAPI && typeof window.chartAPI.setOption !== 'undefined');
+      console.log('ECharts 存在:', typeof echarts !== 'undefined');
+
+      try {
+        // 检查ECharts是否已加载
+        if (typeof echarts === 'undefined') {
+          console.error('ECharts 库未加载');
+          return JSON.stringify({ success: false, error: 'ECharts库未加载', stage: 'library_check' });
+        }
+
+        // 检查chartAPI是否已初始化
+        if (!window.chartAPI) {
+          console.error('chartAPI 对象不存在');
+          return JSON.stringify({ success: false, error: 'chartAPI对象不存在', stage: 'api_check' });
+        }
+
+        if (!window.chartAPI.setOption) {
+          console.error('setOption 方法不存在');
+          return JSON.stringify({ success: false, error: 'setOption方法不存在', stage: 'method_check' });
+        }
+
+        // 尝试调用setOption
+        const option = ${configJson};
+        console.log('图表配置:', option);
+
+        const result = window.chartAPI.setOption(option);
+        console.log('setOption 调用结果:', result);
+
+        return JSON.stringify({ success: true, result: result, stage: 'success' });
+
+      } catch (e) {
+        console.error('JavaScript 执行错误:', e);
+        return JSON.stringify({ success: false, error: e.toString(), stage: 'javascript_error' });
+      }
+    })()`;
+
+    webviewController.runJavaScript(jsCode)
+      .then((result) => {
+        console.info('[ChartPage] JavaScript 执行结果:', result);
+
+        try {
+          const parsedResult = JSON.parse(result);
+          if (parsedResult.success) {
+            console.info('[ChartPage] ✅ 图表配置设置成功！');
+          } else {
+            console.error('[ChartPage] ❌ 图表配置设置失败:', parsedResult.error, '阶段:', parsedResult.stage);
+
+            // 如果是API未就绪的问题，进行重试
+            if (retryCount < maxRetries &&
+                (parsedResult.stage === 'api_check' || parsedResult.stage === 'method_check')) {
+              console.info(`[ChartPage] ${retryDelay}ms 后进行第 ${retryCount + 2} 次重试`);
+              setTimeout(() => {
+                applyChartConfigWithRetry(config, retryCount + 1);
+              }, retryDelay);
+            } else {
+              console.error('[ChartPage] 重试次数已达上限，设置失败');
+            }
+          }
+        } catch (parseError) {
+          console.error('[ChartPage] 解析JavaScript结果失败:', parseError);
+          console.error('[ChartPage] 原始结果:', result);
+        }
+      })
+      .catch((err: Error) => {
+        console.error('[ChartPage] runJavaScript 执行失败:', err);
+
+        // 网络或系统错误，进行重试
+        if (retryCount < maxRetries) {
+          console.info(`[ChartPage] 系统错误，${retryDelay}ms 后进行第 ${retryCount + 2} 次重试`);
+          setTimeout(() => {
+            applyChartConfigWithRetry(config, retryCount + 1);
+          }, retryDelay);
+        }
+      });
+
+  } catch (error) {
+    console.error('[ChartPage] 序列化图表配置失败:', error);
   }
 }
 
