@@ -6,6 +6,9 @@ import { setChartOption } from './ChartPage';
 import { ErrorHandler } from '../utils/errorHandler';
 import { getGlobalContext } from '../utils/sampleDataManager';
 import { BusinessError } from '@kit.BasicServicesKit';
+import picker from '@ohos.file.picker';
+import fs from '@ohos.file.fs';
+import { util } from '@kit.ArkTS';
 
 @Entry
 @Component
@@ -77,7 +80,7 @@ export struct AIAssistantPage {
       console.info('[AIAssistantPage] 图表配置生成成功:', JSON.stringify(chartConfig).substring(0, 200));
 
       // 4. 设置图表配置并跳转
-      setChartOption(chartConfig);
+      setChartOption(chartConfig, userData);
       console.info('[AIAssistantPage] 图表配置已设置，准备跳转');
 
       // 5. 跳转到图表页面
@@ -100,6 +103,224 @@ export struct AIAssistantPage {
     } finally {
       this.isLoading = false;
     }
+  }
+
+  /**
+   * 打开文件选择器并处理CSV文件
+   */
+  async handleFileUpload(): Promise<void> {
+    if (this.isLoading) {
+      return;
+    }
+
+    try {
+      console.info('[AIAssistantPage] ========== 开始文件上传 ==========');
+      this.isLoading = true;
+      this.loadingMessage = '正在选择文件...';
+
+      // 创建文件选择器
+      const documentPicker = new picker.DocumentPicker();
+      documentPicker.selectMultiple = false; // 单选文件
+
+      // 设置支持的文件类型
+      documentPicker.MimeType = {
+        type: 'text/csv'
+      };
+
+      console.info('[AIAssistantPage] 文件选择器已初始化');
+
+      // 打开文件选择器
+      const uriList = await documentPicker.select();
+      console.info('[AIAssistantPage] 文件选择结果:', uriList);
+
+      if (uriList && uriList.length > 0) {
+        const fileUri = uriList[0];
+        console.info('[AIAssistantPage] 选择文件:', fileUri);
+
+        this.loadingMessage = '正在读取文件内容...';
+
+        // 读取文件内容
+        const fileContent = await this.readFileContent(fileUri);
+
+        if (fileContent) {
+          this.loadingMessage = '正在解析数据...';
+
+          // 解析CSV数据
+          const userData = this.parseCSVContent(fileContent);
+
+          if (userData) {
+            this.loadingMessage = '正在调用AI生成图表...';
+
+            // 调用AI服务生成图表
+            const chartConfig: ChartConfig = await generateChart(userData);
+            console.info('[AIAssistantPage] 图表配置生成成功');
+
+            // 设置图表配置并跳转
+            setChartOption(chartConfig, userData);
+            console.info('[AIAssistantPage] 图表配置已设置，准备跳转');
+
+            // 跳转到图表页面
+            await router.pushNamedRoute({
+              name: 'ChartPage'
+            });
+
+            console.info('[AIAssistantPage] 已跳转到图表页面');
+          } else {
+            throw new Error('CSV数据解析失败');
+          }
+        }
+      } else {
+        console.info('[AIAssistantPage] 用户取消文件选择');
+      }
+    } catch (error) {
+      console.error('[AIAssistantPage] 文件上传失败:', error);
+      const appError = ErrorHandler.handle(error, 'handleFileUpload');
+
+      // 显示错误提示
+      this.loadingMessage = `上传失败: ${appError.userMessage}`;
+
+      // 延迟清除错误消息
+      setTimeout(() => {
+        this.loadingMessage = '正在生成图表...';
+      }, 3000);
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  /**
+   * 读取文件内容
+   */
+  private async readFileContent(uri: string): Promise<string | null> {
+    try {
+      console.info('[AIAssistantPage] 开始读取文件:', uri);
+
+      // 打开文件
+      const file = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+      console.info('[AIAssistantPage] 文件打开成功');
+
+      // 获取文件大小
+      const stat = fs.statSync(file.fd);
+      const fileSize = stat.size;
+      console.info('[AIAssistantPage] 文件大小:', fileSize, 'bytes');
+
+      // 检查文件大小限制 (10MB)
+      if (fileSize > 10 * 1024 * 1024) {
+        throw new Error('文件过大，请选择小于10MB的文件');
+      }
+
+      // 读取文件内容
+      const buffer = new ArrayBuffer(fileSize);
+      const readSize = fs.readSync(file.fd, buffer);
+      console.info('[AIAssistantPage] 读取字节数:', readSize);
+
+      // 关闭文件
+      fs.closeSync(file);
+
+      // 转换为字符串
+      const decoder = util.TextDecoder.create('utf-8');
+      const content = decoder.decodeWithStream(new Uint8Array(buffer), { stream: false });
+
+      console.info('[AIAssistantPage] 文件读取完成，内容长度:', content.length);
+      return content;
+
+    } catch (error) {
+      console.error('[AIAssistantPage] 读取文件失败:', error);
+      throw new Error(`文件读取失败: ${error}`);
+    }
+  }
+
+  /**
+   * 解析CSV内容
+   */
+  private parseCSVContent(content: string): UserData | null {
+    try {
+      console.info('[AIAssistantPage] 开始解析CSV内容');
+      console.info('[AIAssistantPage] 原始内容长度:', content.length);
+
+      // 按行分割
+      const lines = content.trim().split('\n').filter(line => line.trim() !== '');
+      console.info('[AIAssistantPage] 有效行数:', lines.length);
+
+      if (lines.length < 2) {
+        throw new Error('CSV文件内容不足，至少需要标题行和一行数据');
+      }
+
+      // 解析标题行
+      const headers = this.parseCSVLine(lines[0]);
+      console.info('[AIAssistantPage] 解析到表头:', headers);
+
+      if (headers.length < 2) {
+        throw new Error('CSV文件至少需要两列数据');
+      }
+
+      // 解析数据行
+      const data: any[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        try {
+          const values = this.parseCSVLine(lines[i]);
+          if (values.length === headers.length) {
+            const rowObject: any = {};
+            headers.forEach((header, index) => {
+              const value = values[index];
+              // 尝试转换为数字，如果失败则保持字符串
+              const numValue = Number(value);
+              rowObject[header.trim()] = isNaN(numValue) ? value.trim() : numValue;
+            });
+            data.push(rowObject);
+          }
+        } catch (lineError) {
+          console.warn(`[AIAssistantPage] 跳过第${i + 1}行，解析失败:`, lineError);
+        }
+      }
+
+      console.info('[AIAssistantPage] 解析完成，数据行数:', data.length);
+
+      if (data.length === 0) {
+        throw new Error('没有有效的数据行');
+      }
+
+      return { data };
+
+    } catch (error) {
+      console.error('[AIAssistantPage] CSV解析失败:', error);
+      throw new Error(`CSV解析失败: ${error}`);
+    }
+  }
+
+  /**
+   * 解析CSV行（处理逗号分隔和引号）
+   */
+  private parseCSVLine(line: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          // 转义的引号
+          current += '"';
+          i++; // 跳过下一个引号
+        } else {
+          // 切换引号状态
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        // 字段分隔符
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+
+    // 添加最后一个字段
+    result.push(current.trim());
+
+    return result;
   }
 
   /**
@@ -231,15 +452,19 @@ export struct AIAssistantPage {
           // 数据输入操作区 - 三个主要操作按钮
           Column() {
             // 上传数据按钮（主色调）
-            this.ActionButton('📄', '上传数据', true, () => {
+            this.ActionButton('📄', '上传数据', true, async () => {
               console.info('点击上传数据');
-              // TODO: 实现文件选择器逻辑
+              await this.handleFileUpload();
             })
 
             // 手动输入按钮（深色背景，亮色边框）
             this.ActionButton('✍️', '手动输入', false, () => {
               console.info('点击手动输入');
-              // TODO: 导航到数据手动输入页面
+              router.pushNamedRoute({
+                name: 'DataInputPage'
+              }).catch((err: BusinessError) => {
+                console.error('跳转到数据输入页面失败:', err);
+              });
             })
 
             // 使用示例数据按钮（深色背景，亮色边框）

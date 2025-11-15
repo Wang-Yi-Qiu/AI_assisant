@@ -1,5 +1,5 @@
 import router from '@ohos.router';
-import { ChartConfig } from '../utils/aiService';
+import { ChartConfig, UserData } from '../utils/aiService';
 import webview from '@ohos.web.webview';
 import picker from '@ohos.file.picker';
 import fs from '@ohos.file.fs';
@@ -8,6 +8,8 @@ import { util } from '@kit.ArkTS';
 
 // 全局变量存储图表配置
 let globalChartConfig: ChartConfig | null = null;
+// 全局变量存储原始数据（用于重新生成）
+let globalOriginalData: UserData | null = null;
 // WebView 控制器引用
 let webviewController: webview.WebviewController | null = null;
 
@@ -15,12 +17,18 @@ let webviewController: webview.WebviewController | null = null;
  * 设置图表配置（供其他页面调用）
  * 增强版本：包含重试机制和详细错误处理
  */
-export function setChartOption(config: ChartConfig): void {
+export function setChartOption(config: ChartConfig, originalData?: UserData): void {
   console.info('[ChartPage] ========== setChartOption 开始执行 ==========');
   console.info('[ChartPage] 配置类型:', typeof config);
   console.info('[ChartPage] 配置预览:', JSON.stringify(config).substring(0, 200));
 
   globalChartConfig = config;
+
+  // 如果提供了原始数据，保存起来用于重新生成
+  if (originalData) {
+    globalOriginalData = originalData;
+    console.info('[ChartPage] 原始数据已保存，数据行数:', originalData.data?.length || 0);
+  }
 
   // 如果 WebView 已经加载，立即设置图表配置
   if (webviewController) {
@@ -29,6 +37,21 @@ export function setChartOption(config: ChartConfig): void {
   } else {
     console.warn('[ChartPage] WebView 尚未加载，配置已保存，等待页面加载');
   }
+}
+
+/**
+ * 获取原始数据（用于重新生成）
+ */
+export function getOriginalData(): UserData | null {
+  return globalOriginalData;
+}
+
+/**
+ * 设置原始数据
+ */
+export function setOriginalData(data: UserData): void {
+  globalOriginalData = data;
+  console.info('[ChartPage] 原始数据已设置，数据行数:', data.data?.length || 0);
 }
 
 /**
@@ -387,6 +410,73 @@ export struct ChartPage {
     }
   }
 
+  /**
+   * 重新生成图表功能
+   */
+  async regenerateChart(chartType?: string): Promise<void> {
+    if (this.isLoading) {
+      return;
+    }
+
+    try {
+      console.info('[ChartPage] ========== 开始重新生成图表 ==========');
+
+      // 检查是否有原始数据
+      const originalData = getOriginalData();
+      if (!originalData || !originalData.data || originalData.data.length === 0) {
+        throw new Error('没有原始数据用于重新生成图表');
+      }
+
+      console.info('[ChartPage] 使用原始数据重新生成图表，数据行数:', originalData.data.length);
+
+      this.isLoading = true;
+      this.loadingMessage = '正在重新生成图表...';
+
+      // 导入generateChart函数
+      const { generateChart } = await import('../utils/aiService');
+
+      // 如果指定了图表类型，可以在这里处理
+      let userData = originalData;
+      if (chartType) {
+        // 可以根据chartType调整用户数据的配置
+        console.info('[ChartPage] 指定图表类型:', chartType);
+        userData = { ...originalData, chartType };
+      }
+
+      // 调用AI服务重新生成图表配置
+      const newChartConfig: ChartConfig = await generateChart(userData);
+      console.info('[ChartPage] 新图表配置生成成功');
+
+      // 更新全局配置
+      globalChartConfig = newChartConfig;
+      this.chartConfig = newChartConfig;
+
+      // 应用新的图表配置
+      if (webviewController) {
+        console.info('[ChartPage] 应用新的图表配置');
+        applyChartConfigWithRetry(newChartConfig, 0);
+      } else {
+        console.warn('[ChartPage] WebView控制器未初始化');
+      }
+
+      console.info('[ChartPage] ✅ 图表重新生成完成');
+
+    } catch (error) {
+      console.error('[ChartPage] ❌ 重新生成图表失败:', error);
+
+      // 显示错误信息
+      this.errorMessage = `重新生成失败: ${error instanceof Error ? error.message : '未知错误'}`;
+      this.isLoading = false;
+
+      // 延迟清除错误消息
+      setTimeout(() => {
+        this.errorMessage = '';
+      }, 3000);
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
   build() {
     Column() {
       // 头部导航栏
@@ -626,15 +716,19 @@ export struct ChartPage {
         })
 
         // 重新生成
-        this.ActionButton('🔄', '重新生成', false, () => {
+        this.ActionButton('🔄', '重新生成', false, async () => {
           console.info('重新生成被点击');
-          // TODO: 实现重新生成逻辑
+          await this.regenerateChart();
         })
 
         // 更换图表（主色调）
         this.ActionButton('📈', '更换图表', true, () => {
           console.info('更换图表被点击');
-          // TODO: 导航到图表类型选择界面
+          router.pushNamedRoute({
+            name: 'ChartTypeSelectorPage'
+          }).catch((err: BusinessError) => {
+            console.error('跳转到图表类型选择页面失败:', err);
+          });
         })
       }
       .width('100%')

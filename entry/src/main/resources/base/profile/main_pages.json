@@ -6,6 +6,8 @@
     "pages/ChartPage",
     "pages/PomodoroStatsPage",
     "pages/AIAssistantPage",
+    "pages/DataInputPage",
+    "pages/ChartTypeSelectorPage",
     "pages/SettingsPage",
     "pages/LoginPage",
     "pages/HistoryPage"
