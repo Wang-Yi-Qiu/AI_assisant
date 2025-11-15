@@ -38,6 +38,13 @@ export enum ErrorCode {
   // AI服务相关错误
   QWEN_ERROR = 'QWEN_ERROR',
 
+  // AI洞察相关错误
+  INSIGHT_TIMEOUT = 'INSIGHT_TIMEOUT',
+  INSIGHT_SERVICE_UNAVAILABLE = 'INSIGHT_SERVICE_UNAVAILABLE',
+  INSIGHT_GENERATION_FAILED = 'INSIGHT_GENERATION_FAILED',
+  INSIGHT_INVALID_RESPONSE = 'INSIGHT_INVALID_RESPONSE',
+  INSIGHT_CACHE_ERROR = 'INSIGHT_CACHE_ERROR',
+
   // 添加缺少的错误代码
   NOT_FOUND = 'NOT_FOUND'
 }
@@ -122,6 +129,18 @@ export class ErrorHandler {
 
       case ErrorCode.QWEN_ERROR:
         return 'AI服务调用失败，请稍后重试';
+
+      case ErrorCode.INSIGHT_TIMEOUT:
+        return 'AI洞察生成超时，请稍后重试';
+      case ErrorCode.INSIGHT_SERVICE_UNAVAILABLE:
+        return 'AI洞察暂时不可用，请稍后重试';
+      case ErrorCode.INSIGHT_GENERATION_FAILED:
+        return 'AI洞察生成失败，请稍后重试';
+      case ErrorCode.INSIGHT_INVALID_RESPONSE:
+        return '洞察数据格式错误，请稍后重试';
+      case ErrorCode.INSIGHT_CACHE_ERROR:
+        return '洞察缓存错误，请稍后重试';
+
       default:
         return '服务异常，请稍后重试';
     }
@@ -291,6 +310,11 @@ export class ErrorHandler {
         ErrorCode.CHART_CONFIG_INVALID,
         ErrorCode.SYSTEM_ERROR,
         ErrorCode.QWEN_ERROR,
+        ErrorCode.INSIGHT_TIMEOUT,
+        ErrorCode.INSIGHT_SERVICE_UNAVAILABLE,
+        ErrorCode.INSIGHT_GENERATION_FAILED,
+        ErrorCode.INSIGHT_INVALID_RESPONSE,
+        ErrorCode.INSIGHT_CACHE_ERROR,
         ErrorCode.NOT_FOUND
       ];
       if (validCodes.includes(errorCode)) {

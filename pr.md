@@ -348,28 +348,33 @@ AI 自动生成图表分析说明；
 **待实现的功能按钮（根据界面设计补充）：**
 
 1. **首页（Index.ets）数据输入模块**：
-   - ⏳ "使用样本数据" 按钮（Use Sample Data）
+   - 📋 "使用样本数据" 按钮（Use Sample Data）- **规划文档已完成**
      - 功能：提供预设的示例数据集，用户可一键加载并生成示例图表
      - 实现：在 `Index.ets` 中添加按钮，点击后加载预设的 JSON/CSV 样本数据到输入框
+     - 规划文档：`specs/002-chart-ai-enhancements/spec.md`、`plan.md`、`data-model.md`
    - ⏳ "手动输入" 按钮（Manual Input）
      - 功能：明确标识手动输入入口（当前已有文本输入区域，可优化为按钮式入口）
      - 实现：优化现有文本输入区域的视觉呈现，或添加明确的"手动输入"按钮
 
 2. **图表预览页（ChartPage.ets）控制功能**：
-   - ⏳ "重新生成" 按钮（Regenerate）
+   - 📋 "重新生成" 按钮（Regenerate）- **规划文档已完成**
      - 功能：基于当前图表配置重新调用 AI 生成新的图表配置
      - 实现：在 `ChartPage.ets` 中添加按钮，调用 `aiService.generateChart()` 重新生成
-   - ⏳ "更改类型" 按钮（Change Type）
+     - 规划文档：`specs/002-chart-ai-enhancements/spec.md`、`plan.md`、`contracts/openapi.yaml`
+   - 📋 "更改类型" 按钮（Change Type）- **规划文档已完成**
      - 功能：允许用户手动切换图表类型（如折线图、柱状图、饼图等）
      - 实现：在 `ChartPage.ets` 中添加按钮，弹出图表类型选择器，修改当前配置的 `series[0].type`
-   - ⏳ "AI 洞察" 部分（AI Insights）
+     - 规划文档：`specs/002-chart-ai-enhancements/spec.md`、`plan.md`、`research.md`
+   - 📋 "AI 洞察" 部分（AI Insights）- **规划文档已完成**
      - 功能：显示 AI 对当前图表数据的智能分析和洞察建议
      - 实现：在 `ChartPage.ets` 中添加 AI 洞察卡片，调用 AI 服务生成数据洞察文本
+     - 规划文档：`specs/002-chart-ai-enhancements/spec.md`、`plan.md`、`contracts/schemas/insightSchema.json`
 
 3. **专注进度统计页（ProgressPage.ets）增强功能**：
-   - ⏳ "AI 洞察" 按钮（在 Total Focus Time 部分）
+   - 📋 "AI 洞察" 按钮（在 Total Focus Time 部分）- **规划文档已完成**
      - 功能：基于专注时间数据生成 AI 分析报告和建议
      - 实现：在 `ProgressPage.ets` 的"总专注时间"卡片中添加按钮，调用 AI 服务分析专注模式
+     - 规划文档：`specs/002-chart-ai-enhancements/spec.md`、`plan.md`、`data-model.md`
 
 **代码质量与度量：**
 - ✅ 无linter错误
@@ -894,6 +899,38 @@ export default Deno.serve(async (req) => {
     - 在 `initWebView()` 中检查是否有待渲染的图表配置
     - 如果没有配置，显示友好的错误提示
     - 确保 `isLoading` 状态在图表配置应用成功后正确更新
+
+**变更日志（2025-01-28·图表增强功能规划完成）**
+
+- ✅ **002-chart-ai-enhancements 特性规划文档已完成**：
+  - 完成规范文档：`specs/002-chart-ai-enhancements/spec.md`
+    - 定义了5个用户故事（样本数据、重新生成、类型切换、图表AI洞察、专注AI洞察）
+    - 明确了功能需求和非功能需求
+    - 设定了成功标准和关键实体
+    - 解答了所有开放问题
+  - 完成规划文档：`specs/002-chart-ai-enhancements/plan.md`
+    - 技术上下文和实现方法
+    - 多设备兼容性策略和测试矩阵
+    - 风险识别和缓解措施
+    - 宪法检查和门禁评估
+  - 完成研究文档：`specs/002-chart-ai-enhancements/research.md`
+    - 解决了所有澄清问题（AI洞察Edge Function实现、样本数据存储、类型切换兼容性、缓存策略）
+    - 提供了技术决策和实现方案
+  - 完成数据模型：`specs/002-chart-ai-enhancements/data-model.md`
+    - SampleDataset（本地资源实体）
+    - ChartInsight 和 FocusInsight（可选持久化）
+    - 验证规则和状态转换
+  - 完成API契约：`specs/002-chart-ai-enhancements/contracts/`
+    - `openapi.yaml` - 新增 `generate_insight` 端点定义
+    - `schemas/insightSchema.json` - AI洞察响应格式
+    - `schemas/sampleDataset.schema.json` - 样本数据元数据格式
+    - `VALIDATE.md` - 验证说明文档
+  - 完成快速开始指南：`specs/002-chart-ai-enhancements/quickstart.md`
+    - 5个功能的演示步骤
+    - 多设备验证清单
+    - 故障排查指南
+  - 质量检查完成：`specs/002-chart-ai-enhancements/checklists/requirements.md`
+    - 所有检查项已完成，规范已就绪，可以进入实现阶段
 
 **变更日志（2025-01-28·功能整合）**
 

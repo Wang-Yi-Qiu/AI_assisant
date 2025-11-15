@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schemas/sampleDataset.schema.json",
+  "title": "SampleDataset",
+  "type": "object",
+  "description": "样本数据集的元数据定义（用于前端代码中的样本数据列表）",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "样本数据唯一标识",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "name": {
+      "type": "string",
+      "description": "样本数据名称（显示给用户）",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "description": "样本数据描述（显示给用户）",
+      "minLength": 1
+    },
+    "filePath": {
+      "type": "string",
+      "description": "rawfile 资源路径（相对于 rawfile 目录）",
+      "pattern": "^sample-data/[a-z0-9-]+\\.json$"
+    },
+    "chartType": {
+      "type": "string",
+      "enum": ["line", "bar", "pie", "scatter"],
+      "description": "推荐的图表类型（可选）"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["sales", "users", "timeseries", "finance", "other"],
+      "description": "数据类别"
+    }
+  },
+  "required": ["id", "name", "description", "filePath", "category"],
+  "additionalProperties": false
+}
+

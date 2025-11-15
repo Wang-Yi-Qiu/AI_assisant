@@ -15,6 +15,9 @@ import { ErrorHandler, AppError } from '../utils/errorHandler';
 import { asyncManager, AsyncOptions, CancellationToken, AsyncTask } from '../utils/asyncManager';
 import { deviceAdapter, DeviceType } from '../utils/deviceAdapter';
 import { ChartConfig } from '../utils/aiService';
+import { loadSampleData, getSampleDataList, SampleDataset, setGlobalContext } from '../utils/sampleDataManager';
+import { common } from '@kit.AbilityKit';
+import promptAction from '@ohos.promptAction';
 
 @Entry
 @Component
@@ -23,6 +26,7 @@ struct Index {
   @State isLoading: boolean = false;
   @State errorMessage: string = '';
   @State showSuccess: boolean = false;
+  @State sampleDataError: string = ''; // 样本数据加载错误提示
   // 异步任务管理
   private currentTask: AsyncTask<ChartConfig> | null = null;
   private isDestroyed: boolean = false;
@@ -35,6 +39,16 @@ struct Index {
     // 注意：窗口大小变化监听功能暂时移除，因为getContext已弃用
     // 如果需要，可以在组件内部使用窗口API直接监听
     // 当前布局配置会在组件初始化时自动适配设备类型
+    
+    // 设置全局上下文（用于样本数据加载）
+    try {
+      const context = this.getContext() as common.UIAbilityContext;
+      if (context) {
+        setGlobalContext(context);
+      }
+    } catch (error) {
+      console.warn('无法获取应用上下文:', error);
+    }
   }
 
   aboutToDisappear() {
@@ -96,7 +110,38 @@ struct Index {
             this.inputText = value;
             this.errorMessage = '';
             this.showSuccess = false;
+            this.sampleDataError = ''; // 清除样本数据错误提示
           })
+
+        // 样本数据按钮行
+        Row() {
+          Button('使用样本数据')
+            .type(ButtonType.Normal)
+            .backgroundColor('#E8F5E9')
+            .fontColor('#4CAF50')
+            .fontSize(this.layoutConfig.fontSize.medium)
+            .enabled(!this.isLoading)
+            .onClick(() => {
+              this.onLoadSampleData();
+            })
+            // TV/车机焦点导航支持
+            .focusable(deviceAdapter.needsFocusNavigation())
+            .focusOnTouch(deviceAdapter.needsFocusNavigation())
+            .tabIndex(1)
+        }
+        .width('100%')
+        .height(this.deviceType === DeviceType.WEARABLE ? 36 : 44)
+        .margin({ top: this.layoutConfig.spacing.medium })
+        .justifyContent(FlexAlign.Start)
+
+        // 样本数据加载错误提示
+        if (this.sampleDataError) {
+          Text(this.sampleDataError)
+            .fontSize(this.layoutConfig.fontSize.small)
+            .fontColor('#F44336')
+            .width('100%')
+            .margin({ top: this.layoutConfig.spacing.small })
+        }
 
         Row() {
           // 文件上传按钮（根据设备能力显示/隐藏）
@@ -109,6 +154,10 @@ struct Index {
               .onClick(() => {
                 this.onUploadFile();
               })
+              // TV/车机焦点导航支持
+              .focusable(deviceAdapter.needsFocusNavigation())
+              .focusOnTouch(deviceAdapter.needsFocusNavigation())
+              .tabIndex(2)
           } else {
             // 不支持文件上传时显示提示文本
             Text(deviceAdapter.getFallbackMessage('fileUpload'))
@@ -129,6 +178,10 @@ struct Index {
             .onClick(() => {
               this.onGenerateChart();
             })
+            // TV/车机焦点导航支持
+            .focusable(deviceAdapter.needsFocusNavigation())
+            .focusOnTouch(deviceAdapter.needsFocusNavigation())
+            .tabIndex(3)
         }
         .width('100%')
         .height(this.deviceType === DeviceType.WEARABLE ? 40 : 48)
@@ -426,6 +479,94 @@ struct Index {
       console.error('读取文件失败:', error);
       // ArkTS限制：throw 语句只能抛出 Error 类型
       throw error instanceof Error ? error : new Error(String(error));
+    }
+  }
+
+  /**
+   * 加载样本数据
+   */
+  async onLoadSampleData() {
+    try {
+      this.isLoading = true;
+      this.sampleDataError = '';
+      this.errorMessage = '';
+      this.showSuccess = false;
+
+      // 获取样本数据列表
+      const sampleList = getSampleDataList();
+      if (sampleList.length === 0) {
+        this.sampleDataError = '没有可用的样本数据';
+        this.isLoading = false;
+        return;
+      }
+
+      // 默认加载第一个样本数据（可以根据需要改为让用户选择）
+      const firstSample = sampleList[0];
+      
+      // 设置超时（3秒）
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('加载超时'));
+        }, 3000);
+      });
+
+      // 获取上下文
+      const context = this.getContext() as common.UIAbilityContext;
+      if (!context) {
+        throw new Error('应用上下文不可用');
+      }
+
+      // 加载样本数据
+      const loadPromise = loadSampleData(firstSample.id, context);
+      const content = await Promise.race([loadPromise, timeoutPromise]);
+
+      // 填充输入框
+      this.inputText = content;
+      this.sampleDataError = '';
+      
+      // 显示成功提示（Toast 2秒）
+      promptAction.showToast({
+        message: '样本数据加载成功',
+        duration: 2000
+      });
+
+    } catch (error) {
+      console.error('加载样本数据失败:', error);
+      
+      // 处理各种错误情况
+      let errorMessage = '样本数据加载失败，请手动输入数据';
+      
+      if (error instanceof AppError) {
+        errorMessage = error.userMessage || errorMessage;
+      } else if (error instanceof Error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('timeout') || msg.includes('超时')) {
+          errorMessage = '加载超时，请手动输入数据';
+        } else if (msg.includes('not found') || msg.includes('不存在')) {
+          errorMessage = '样本数据文件不存在，请手动输入数据';
+        } else if (msg.includes('parse') || msg.includes('格式')) {
+          errorMessage = '样本数据格式错误，请手动输入数据';
+        } else if (msg.includes('empty') || msg.includes('无效') || msg.includes('不完整')) {
+          errorMessage = '样本数据无效，请手动输入数据';
+        } else if (msg.includes('损坏')) {
+          errorMessage = '样本数据文件损坏，请手动输入数据';
+        } else if (msg.includes('存储') || msg.includes('空间')) {
+          errorMessage = '存储空间不足，请清理空间后重试';
+        } else if (msg.includes('内存')) {
+          errorMessage = '内存不足，请关闭其他应用后重试';
+        }
+      }
+
+      this.sampleDataError = errorMessage;
+      
+      // 显示Toast提示
+      promptAction.showToast({
+        message: errorMessage,
+        duration: 2000
+      });
+
+    } finally {
+      this.isLoading = false;
     }
   }
 }

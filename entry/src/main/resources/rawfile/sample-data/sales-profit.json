@@ -1,0 +1,15 @@
+[
+  {"sales": 10000, "profit": 2000},
+  {"sales": 12000, "profit": 2500},
+  {"sales": 15000, "profit": 3200},
+  {"sales": 18000, "profit": 4000},
+  {"sales": 20000, "profit": 4500},
+  {"sales": 22000, "profit": 5000},
+  {"sales": 25000, "profit": 5800},
+  {"sales": 28000, "profit": 6500},
+  {"sales": 30000, "profit": 7200},
+  {"sales": 32000, "profit": 7800},
+  {"sales": 35000, "profit": 8500},
+  {"sales": 38000, "profit": 9200}
+]
+
