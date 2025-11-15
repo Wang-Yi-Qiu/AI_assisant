@@ -175,16 +175,39 @@
 
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(initChart, 100);
+            // 检查 ECharts 库是否已加载
+            function checkEChartsAndInit() {
+                if (typeof echarts !== 'undefined') {
+                    console.log('ECharts 库已加载，开始初始化图表');
+                    if (initChart()) {
+                        console.log('图表初始化完成，chartAPI 已就绪');
+                    }
+                } else {
+                    console.log('等待 ECharts 库加载...');
+                    // 如果 ECharts 还未加载，继续等待
+                    setTimeout(checkEChartsAndInit, 200);
+                }
+            }
+            
+            // 延迟一点时间后开始检查
+            setTimeout(checkEChartsAndInit, 100);
         });
 
         // 暴露接口给 HarmonyOS WebView
+        // 在 ECharts 加载之前就暴露接口，但函数内部会检查初始化状态
         window.chartAPI = {
             setOption: setChartOption,
             exportImage: exportChart,
             getOption: getChartOption,
             init: initChart
         };
+        
+        // 确保在 ECharts 加载后也能正确初始化
+        // 如果 ECharts 已经加载，立即初始化
+        if (typeof echarts !== 'undefined') {
+            console.log('ECharts 库在页面加载时已存在，立即初始化');
+            setTimeout(initChart, 100);
+        }
     </script>
 </body>
 </html>

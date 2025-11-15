@@ -3,7 +3,7 @@
  * @module chartTypeSwitcher
  */
 
-import { ChartConfig, EChartsSeriesItem } from './aiService';
+import { ChartConfig, EChartsSeriesItem as EChartsSeries } from './aiService';
 import { AppError, ErrorCode } from './errorHandler';
 
 /**
@@ -82,8 +82,8 @@ export function isCompatibleWithChartType(config: ChartConfig, targetType: Chart
         if (typeof firstPoint === 'object' && firstPoint !== null) {
           // 检查是否为对象格式的数据点（如 {x: 1, y: 2}）
           const point = firstPoint as Record<string, number | string>;
-          const hasX = 'x' in point || 'value' in point;
-          const hasY = 'y' in point || 'value' in point;
+          const hasX = (point['x'] !== undefined) || (point['value'] !== undefined);
+          const hasY = (point['y'] !== undefined) || (point['value'] !== undefined);
           // 如果数据是数组格式 [x, y] 或 [value]，也认为兼容
           if (Array.isArray(firstPoint)) {
             return firstPoint.length >= 2;
@@ -124,6 +124,68 @@ export function autoSelectChartType(config: ChartConfig): ChartType | null {
 }
 
 /**
+ * 手动复制配置对象的辅助函数
+ */
+function copyChartConfig(src: ChartConfig): ChartConfig {
+  const dest: ChartConfig = {
+    series: []
+  };
+  if (src.title) {
+    dest.title = src.title;
+  }
+  if (src.xAxis) {
+    dest.xAxis = src.xAxis;
+  }
+  if (src.yAxis) {
+    dest.yAxis = src.yAxis;
+  }
+  if (src.tooltip) {
+    dest.tooltip = src.tooltip;
+  }
+  if (src.legend) {
+    dest.legend = src.legend;
+  }
+  if (src.grid) {
+    dest.grid = src.grid;
+  }
+  if (src.series && src.series.length > 0) {
+    dest.series = [];
+    for (let i = 0; i < src.series.length; i++) {
+      const srcSeries = src.series[i];
+      const destSeries: EChartsSeries = {
+        type: srcSeries.type,
+        data: srcSeries.data
+      };
+      if (srcSeries.name) {
+        destSeries.name = srcSeries.name;
+      }
+      if (srcSeries.itemStyle) {
+        destSeries.itemStyle = srcSeries.itemStyle;
+      }
+      dest.series.push(destSeries);
+    }
+  }
+  return dest;
+}
+
+/**
+ * 手动复制系列对象的辅助函数
+ */
+function copySeries(src: EChartsSeries): EChartsSeries {
+  const dest: EChartsSeries = {
+    type: src.type,
+    data: src.data
+  };
+  if (src.name) {
+    dest.name = src.name;
+  }
+  if (src.itemStyle) {
+    dest.itemStyle = src.itemStyle;
+  }
+  return dest;
+}
+
+/**
  * 切换图表类型
  * @param config 当前图表配置
  * @param targetType 目标图表类型
@@ -145,10 +207,10 @@ export function switchChartType(config: ChartConfig, targetType: ChartType): Cha
     const autoType = autoSelectChartType(config);
     if (autoType) {
       // 使用自动选择的类型，但保留原始配置的其他部分
-      const newConfig = { ...config };
+      const newConfig = copyChartConfig(config);
       if (newConfig.series && newConfig.series.length > 0) {
-        newConfig.series = [...newConfig.series];
-        newConfig.series[0] = { ...newConfig.series[0], type: autoType };
+        newConfig.series[0] = copySeries(newConfig.series[0]);
+        newConfig.series[0].type = autoType;
       }
       return newConfig;
     } else {
@@ -163,12 +225,10 @@ export function switchChartType(config: ChartConfig, targetType: ChartType): Cha
 
   // 数据兼容，直接切换类型
   // 保持原始数据的所有字段和值不变，仅修改 series[0].type 字段
-  const newConfig: ChartConfig = { ...config };
+  const newConfig: ChartConfig = copyChartConfig(config);
   if (newConfig.series && newConfig.series.length > 0) {
-    newConfig.series = [...newConfig.series];
-    const firstSeries = { ...newConfig.series[0] };
-    firstSeries.type = targetType;
-    newConfig.series[0] = firstSeries;
+    newConfig.series[0] = copySeries(newConfig.series[0]);
+    newConfig.series[0].type = targetType;
   } else {
     throw new AppError(
       ErrorCode.CHART_CONFIG_INVALID,

@@ -159,7 +159,8 @@ export async function loadSampleData(sampleId: string, context?: common.UIAbilit
 
     // 验证JSON格式
     try {
-      const parsed = JSON.parse(rawFileContent);
+      // JSON.parse 返回对象，使用 object 类型转换
+      const parsed: object | object[] = JSON.parse(rawFileContent) as object | object[];
       // 验证数据包含至少1个数据点
       if (Array.isArray(parsed)) {
         if (parsed.length === 0) {
@@ -169,10 +170,10 @@ export async function loadSampleData(sampleId: string, context?: common.UIAbilit
             '样本数据不完整，请手动输入数据'
           );
         }
-      } else if (typeof parsed === 'object') {
-        // 检查对象是否有数据字段
-        const hasData = 'data' in parsed || 'values' in parsed || Object.keys(parsed).length > 0;
-        if (!hasData) {
+      } else if (typeof parsed === 'object' && parsed !== null) {
+        // 检查对象是否有数据字段（通过检查对象是否有键）
+        const keys = Object.keys(parsed);
+        if (keys.length === 0) {
           throw new AppError(
             ErrorCode.DATA_FORMAT_ERROR,
             `Sample data has no valid data: ${sampleId}`,
@@ -222,7 +223,7 @@ export function setGlobalContext(context: common.UIAbilityContext): void {
  * 获取全局应用上下文
  * @returns 应用上下文或null
  */
-function getContext(): common.UIAbilityContext | null {
+export function getGlobalContext(): common.UIAbilityContext | null {
   return globalContext;
 }
 

@@ -5,9 +5,11 @@
 
 import { saveChart, getSupabaseUrl, getSupabaseAnonKey } from './supabaseClient';
 import { startTimer, endTimer, newRequestId, LogPayload } from './metrics';
-import { httpClient, handleHttpError, RequestManager } from './httpClient';
+import { httpClient, handleHttpError, RequestManager, HttpRequestHeaders } from './httpClient';
 import { ErrorHandler, AppError, ErrorCode, ErrorDetails } from './errorHandler';
 import { isChartConfig, isValidUserData, validateAndCleanString } from './typeGuard';
+import { secureKeyManager } from './secureKeyManager';
+import { authService } from './authService';
 
 // 自定义取消令牌，替代AbortSignal
 export interface CancellationToken {
@@ -209,6 +211,14 @@ export async function generateChart(userData: UserData, token?: CancellationToke
   const requestId = newRequestId();
   const timer = startTimer('chart_generation_client');
 
+  // 诊断日志
+  console.log('[aiService] ========== 开始调用AI服务生成图表 ==========');
+  console.log('[aiService] Edge Function URL:', url);
+  console.log('[aiService] Request ID:', requestId);
+  console.log('[aiService] User Data Type:', typeof cleanedData);
+  console.log('[aiService] User Data Preview:', typeof cleanedData === 'string' ? 
+    cleanedData.substring(0, 200) : JSON.stringify(cleanedData).substring(0, 200));
+
   try {
     // 使用清理后的数据，创建自定义HTTP客户端实例以处理取消
     const requestManager = new RequestManager('generateChart');
@@ -231,7 +241,30 @@ export async function generateChart(userData: UserData, token?: CancellationToke
       }, 100);
     }
 
-    const response = await httpClient.supabasePost('/functions/v1/generate_chart_qwen', JSON.stringify(cleanedData));
+    // 获取用户 API Key（如果已设置）
+    const userApiKey = await secureKeyManager.getApiKey();
+    const sessionToken = authService.getSessionToken();
+    const userId = authService.getUserId();
+    
+    // 构建自定义请求头（如果用户提供了 API Key）
+    const customHeaders: HttpRequestHeaders = {};
+    if (userApiKey) {
+      customHeaders['X-User-Api-Key'] = userApiKey;
+      console.log('[aiService] 使用用户提供的 API Key');
+    } else {
+      console.log('[aiService] 未检测到用户 API Key，将使用服务端默认 Key（如有）');
+      // 传递用户ID用于配额管理
+      if (userId) {
+        customHeaders['X-User-Id'] = userId;
+      }
+    }
+
+    const response = await httpClient.supabasePost(
+      '/functions/v1/generate_chart_qwen', 
+      JSON.stringify(cleanedData),
+      sessionToken ?? undefined,
+      customHeaders
+    );
 
     if (cancelled) {
       throw new OperationCancelledException();
@@ -331,6 +364,27 @@ export async function generateChart(userData: UserData, token?: CancellationToke
       throw error;
     }
 
+    // 详细记录错误信息
+    console.error('[aiService] 图表生成过程出错:', error);
+    console.error('[aiService] 错误类型:', error instanceof Error ? error.constructor.name : typeof error);
+    console.error('[aiService] 错误消息:', error instanceof Error ? error.message : String(error));
+    
+    // 检查是否是网络相关错误
+    if (error instanceof Error) {
+      const errorMsg = error.message.toLowerCase();
+      if (errorMsg.includes('network') || errorMsg.includes('网络') || 
+          errorMsg.includes('timeout') || errorMsg.includes('超时') ||
+          errorMsg.includes('连接') || errorMsg.includes('connection') ||
+          errorMsg.includes('dns') || errorMsg.includes('unreachable') ||
+          errorMsg.includes('econnrefused') || errorMsg.includes('enotfound')) {
+        console.error('[aiService] 检测到网络连接问题，可能是：');
+        console.error('[aiService] 1. VPN影响网络连接');
+        console.error('[aiService] 2. 网络不稳定');
+        console.error('[aiService] 3. Supabase服务无法访问');
+        console.error('[aiService] 4. 防火墙或代理设置问题');
+      }
+    }
+
     // 否则使用ErrorHandler处理
     const appError = ErrorHandler.handle(error, 'generateChart');
     const duration = Date.now() - timer.start;
@@ -382,21 +436,31 @@ function getEdgeUrl(): string {
 }
 
 /**
+ * AI洞察建议接口
+ */
+export interface InsightSuggestion {
+  type: string;
+  text: string;
+  priority?: 'high' | 'medium' | 'low';
+}
+
+/**
+ * AI洞察元数据接口
+ */
+export interface InsightMetadata {
+  model?: string;
+  generatedAt?: string;
+  dataHash?: string;
+}
+
+/**
  * AI洞察响应接口
  */
 export interface InsightResponse {
   insightText: string;
   confidence?: number;
-  suggestions?: Array<{
-    type: string;
-    text: string;
-    priority?: 'high' | 'medium' | 'low';
-  }>;
-  metadata?: {
-    model?: string;
-    generatedAt?: string;
-    dataHash?: string;
-  };
+  suggestions?: InsightSuggestion[];
+  metadata?: InsightMetadata;
 }
 
 /**
@@ -498,9 +562,15 @@ async function generateInsight(
   const requestId = newRequestId();
   const timer = startTimer('insight_generation_client');
 
+  // 请求体接口
+  interface InsightRequestBody {
+    type: InsightType;
+    data: InsightData;
+  }
+
   try {
     // 构建请求体
-    const requestBody = {
+    const requestBody: InsightRequestBody = {
       type: type,
       data: data
     };
@@ -525,6 +595,24 @@ async function generateInsight(
       }, 100);
     }
 
+    // 获取用户 API Key（如果已设置）
+    const userApiKey = await secureKeyManager.getApiKey();
+    const sessionToken = authService.getSessionToken();
+    const userId = authService.getUserId();
+    
+    // 构建自定义请求头（如果用户提供了 API Key）
+    const customHeaders: HttpRequestHeaders = {};
+    if (userApiKey) {
+      customHeaders['X-User-Api-Key'] = userApiKey;
+      console.log('[aiService] 使用用户提供的 API Key（洞察生成）');
+    } else {
+      console.log('[aiService] 未检测到用户 API Key，将使用服务端默认 Key（如有）');
+      // 传递用户ID用于配额管理
+      if (userId) {
+        customHeaders['X-User-Id'] = userId;
+      }
+    }
+
     // 设置5秒超时
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
@@ -538,7 +626,9 @@ async function generateInsight(
 
     const responsePromise = httpClient.supabasePost(
       '/functions/v1/generate_insight',
-      JSON.stringify(requestBody)
+      JSON.stringify(requestBody),
+      sessionToken ?? undefined,
+      customHeaders
     );
 
     const response = await Promise.race([responsePromise, timeoutPromise]);
@@ -630,8 +720,7 @@ async function generateInsight(
       duration: duration,
       timestamp: new Date().toISOString(),
       requestId: requestId,
-      ok: true,
-      type: type
+      ok: true
     };
     endTimer(timer, successPayload);
 
@@ -689,10 +778,14 @@ function generateCacheKey(type: InsightType, data: InsightData): string {
  */
 function clearExpiredCache(): void {
   const now = Date.now();
-  for (const [key, item] of insightCache.entries()) {
+  const keys: string[] = [];
+  insightCache.forEach((item, key) => {
     if (item.expiresAt <= now) {
-      insightCache.delete(key);
+      keys.push(key);
     }
+  });
+  for (let i = 0; i < keys.length; i++) {
+    insightCache.delete(keys[i]);
   }
 }
 

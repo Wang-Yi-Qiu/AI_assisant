@@ -46,7 +46,13 @@ export enum ErrorCode {
   INSIGHT_CACHE_ERROR = 'INSIGHT_CACHE_ERROR',
 
   // 添加缺少的错误代码
-  NOT_FOUND = 'NOT_FOUND'
+  NOT_FOUND = 'NOT_FOUND',
+
+  // 加密/存储相关错误
+  ENCRYPTION_ERROR = 'ENCRYPTION_ERROR',
+  DECRYPTION_ERROR = 'DECRYPTION_ERROR',
+  STORAGE_ERROR = 'STORAGE_ERROR',
+  INVALID_STATE = 'INVALID_STATE'
 }
 
 export interface ErrorDetails {

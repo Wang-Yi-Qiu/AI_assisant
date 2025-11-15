@@ -126,17 +126,8 @@ export class FileManager {
     const documentPicker = new filePicker.DocumentViewPicker();
 
     return new Promise<void>((resolve, reject) => {
-      // save 方法需要 Context 参数，但需要通过 getContext() 获取
-      if (!context) {
-        reject(new AppError(
-          ErrorCode.FILE_READ_ERROR,
-          'Context is required for file save',
-          '文件保存需要上下文信息'
-        ));
-        return;
-      }
-      // 注意：save 方法的签名是 save(context: Context, options: DocumentSaveOptions)
-      // 但根据错误信息，可能需要使用不同的方式
+      // save 方法的签名是 save(options: DocumentSaveOptions)
+      // context 在 HarmonyOS 中通过系统自动获取，不需要显式传递
       documentPicker.save(documentSaveOptions).then((uris: string[]) => {
         if (uris && uris.length > 0) {
           const uri = uris[0];
@@ -203,17 +194,8 @@ export class FileManager {
     const documentPicker = new filePicker.DocumentViewPicker();
 
     return new Promise<void>((resolve, reject) => {
-      // save 方法需要 Context 参数，但需要通过 getContext() 获取
-      if (!context) {
-        reject(new AppError(
-          ErrorCode.FILE_READ_ERROR,
-          'Context is required for file save',
-          '文件保存需要上下文信息'
-        ));
-        return;
-      }
-      // 注意：save 方法的签名是 save(context: Context, options: DocumentSaveOptions)
-      // 但根据错误信息，可能需要使用不同的方式
+      // save 方法的签名是 save(options: DocumentSaveOptions)
+      // context 在 HarmonyOS 中通过系统自动获取，不需要显式传递
       documentPicker.save(documentSaveOptions).then((uris: string[]) => {
         if (uris && uris.length > 0) {
           const uri = uris[0];

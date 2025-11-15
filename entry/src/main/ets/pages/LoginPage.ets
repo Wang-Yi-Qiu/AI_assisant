@@ -173,12 +173,11 @@ struct LoginPage {
     this.errorMessage = '';
 
     try {
-      const credentials = {
-        email: this.email,
-        password: this.password
-      };
-
       if (this.isSignInMode) {
+        const credentials: SignInCredentials = {
+          email: this.email,
+          password: this.password
+        };
         const result = await authService.signIn(credentials);
         if (result.error) {
           this.errorMessage = result.error.message;
@@ -186,6 +185,10 @@ struct LoginPage {
           await this.navigateToHome();
         }
       } else {
+        const credentials: SignUpCredentials = {
+          email: this.email,
+          password: this.password
+        };
         const result = await authService.signUp(credentials);
         if (result.error) {
           this.errorMessage = result.error.message;

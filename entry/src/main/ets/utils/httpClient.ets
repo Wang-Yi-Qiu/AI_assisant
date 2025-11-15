@@ -136,6 +136,12 @@ class HttpClient {
           if (headers['apikey']) {
             headerRecord['apikey'] = headers['apikey'];
           }
+          if (headers['X-User-Api-Key']) {
+            headerRecord['X-User-Api-Key'] = headers['X-User-Api-Key'];
+          }
+          if (headers['X-User-Id']) {
+            headerRecord['X-User-Id'] = headers['X-User-Id'];
+          }
         }
 
         httpRequest.request(url, {
@@ -166,7 +172,23 @@ class HttpClient {
           cleanup();
           // 改进错误消息，确保网络错误被正确识别
           const errorMsg = error.message || String(error);
+          const errorCode = error.code || 0;
+          console.error('[httpClient] HTTP请求异常:', {
+            message: errorMsg,
+            code: errorCode,
+            error: error
+          });
+          
           let errorMessage = `HTTP请求失败: ${errorMsg}`;
+          
+          // 根据错误代码判断网络问题
+          if (errorCode === 2300001 || errorMsg.includes('network') || 
+              errorMsg.includes('网络') || errorMsg.includes('连接') ||
+              errorMsg.includes('timeout') || errorMsg.includes('超时') ||
+              errorMsg.includes('ECONNREFUSED') || errorMsg.includes('ENOTFOUND') ||
+              errorMsg.includes('DNS') || errorMsg.includes('unreachable')) {
+            errorMessage = `网络连接失败: ${errorMsg}。请检查：\n1. 网络连接是否正常\n2. VPN是否影响连接\n3. 防火墙设置\n4. Supabase服务是否可访问`;
+          }
           
           // 检查是否是网络连接错误
           const lowerMsg = errorMsg.toLowerCase();
@@ -284,6 +306,9 @@ class HttpClient {
     if (base['apikey']) {
       result['apikey'] = base['apikey'];
     }
+    if (base['X-User-Api-Key']) {
+      result['X-User-Api-Key'] = base['X-User-Api-Key'];
+    }
     
     // 合并额外的headers（优先使用additional的值）
     if (additional) {
@@ -298,6 +323,12 @@ class HttpClient {
       }
       if (additional['apikey']) {
         result['apikey'] = additional['apikey'];
+      }
+      if (additional['X-User-Api-Key']) {
+        result['X-User-Api-Key'] = additional['X-User-Api-Key'];
+      }
+      if (additional['X-User-Id']) {
+        result['X-User-Id'] = additional['X-User-Id'];
       }
     }
 
@@ -418,11 +449,22 @@ class HttpClient {
 
   /**
    * Supabase认证POST请求
+   * @param path 请求路径
+   * @param body 请求体
+   * @param sessionToken 会话令牌（可选）
+   * @param customHeaders 自定义请求头（可选，用于传递用户 API Key 等）
    */
-  async supabasePost(path: string, body?: string, sessionToken?: string): Promise<HttpResponse> {
+  async supabasePost(path: string, body?: string, sessionToken?: string, customHeaders?: HttpRequestHeaders): Promise<HttpResponse> {
     const cfg = getAppConfig();
     const supabaseUrl = cfg.supabaseUrl || 'https://ugeyrsnrmxjyoflkaapk.supabase.co';
     const url = `${supabaseUrl}${path}`;
+
+    console.log('[httpClient] ========== 发起Supabase POST请求 ==========');
+    console.log('[httpClient] URL:', url);
+    console.log('[httpClient] Path:', path);
+    console.log('[httpClient] Body长度:', body ? body.length : 0);
+    console.log('[httpClient] Body预览:', body ? body.substring(0, 200) : 'null');
+    console.log('[httpClient] Has SessionToken:', !!sessionToken);
 
     const baseHeaders: HttpRequestHeaders = {
       'content-type': 'application/json',
@@ -430,9 +472,35 @@ class HttpClient {
     };
 
     const authHeaders = this.createAuthHeaders(sessionToken);
-    const mergedHeaders = this.mergeHeadersWithAuth(baseHeaders, authHeaders);
+    console.log('[httpClient] Auth Headers - Has API Key:', !!authHeaders.apikey);
+    console.log('[httpClient] Auth Headers - API Key长度:', authHeaders.apikey ? authHeaders.apikey.length : 0);
+    console.log('[httpClient] Auth Headers - Has Authorization:', !!authHeaders.Authorization);
+    
+    // 合并认证头部
+    let mergedHeaders = this.mergeHeadersWithAuth(baseHeaders, authHeaders);
+    
+    // 合并自定义头部（如果提供），自定义头部优先级更高
+    if (customHeaders) {
+      mergedHeaders = this.mergeHeaders(mergedHeaders, customHeaders);
+      // 手动添加自定义头部中的 X-User-Api-Key（如果存在）
+      if (customHeaders['X-User-Api-Key']) {
+        mergedHeaders['X-User-Api-Key'] = customHeaders['X-User-Api-Key'];
+      }
+    }
 
-    return this.post(url, body, mergedHeaders);
+    try {
+      const response = await this.post(url, body, mergedHeaders);
+      console.log('[httpClient] 请求成功 - Status:', response.status);
+      console.log('[httpClient] Response Data Type:', typeof response.data);
+      console.log('[httpClient] Response Data Length:', typeof response.data === 'string' ? response.data.length : 'N/A');
+      return response;
+    } catch (error) {
+      console.error('[httpClient] 请求失败:', error);
+      console.error('[httpClient] 错误类型:', error instanceof Error ? error.constructor.name : typeof error);
+      console.error('[httpClient] 错误消息:', error instanceof Error ? error.message : String(error));
+      // ArkTS限制：throw 语句只能抛出 Error 类型
+      throw error instanceof Error ? error : new Error(String(error));
+    }
   }
 }
 

@@ -1,7 +1,13 @@
 {
   "src": [
+    "pages/SplashPage",
     "pages/Index",
-    "pages/HistoryPage",
-    "pages/ChartPage"
+    "pages/FocusProgressPage",
+    "pages/ChartPage",
+    "pages/PomodoroStatsPage",
+    "pages/AIAssistantPage",
+    "pages/SettingsPage",
+    "pages/LoginPage",
+    "pages/HistoryPage"
   ]
 }

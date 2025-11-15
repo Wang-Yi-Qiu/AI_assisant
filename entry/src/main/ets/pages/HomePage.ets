@@ -1,200 +1,234 @@
-/**
- * 首页：上传或输入数据，触发图表生成
- * @module HomePage
- */
+import router from '@ohos.router';
 
-import { generateChart, ChartConfig, UserData, CSVData, CancellationToken } from '../utils/aiService';
+// 任务数据结构
+export class Task {
+  id: number;
+  text: string;
+  completed: boolean;
 
-// 用户数据接口 - 避免使用索引签名
-interface UserJSONObject {
-  data: object; // 使用通用对象类型
-}
-
-interface CSVDataRow {
-  values: string[]; // 使用数组结构替代索引签名
-}
-
-/**
- * 从文本输入生成图表
- * @param text 用户输入的文本（可以是JSON字符串、CSV文本等）
- * @param token CancellationToken用于取消操作
- * @returns Promise<ChartConfig> 生成的图表配置
- * @throws {Error} 当输入无效或生成失败时
- */
-export async function onGenerateFromText(text: string, token?: CancellationToken): Promise<ChartConfig> {
-  if (!text || text.trim().length === 0) {
-    throw new Error('输入不能为空，请提供数据');
-  }
-
-  // 检查取消信号
-  if (token?.cancelled) {
-    throw new Error('操作已取消');
-  }
-
-  const data = parseUserInput(text.trim());
-
-  // 再次检查取消信号
-  if (token?.cancelled) {
-    throw new Error('操作已取消');
-  }
-
-  return await generateChart(data, token);
-}
-
-/**
- * 从文件上传生成图表
- * @param fileContent 文件内容（文本格式）
- * @param fileName 文件名（用于推断格式）
- */
-export async function onGenerateFromFile(fileContent: string, fileName: string): Promise<ChartConfig> {
-  if (!fileContent || fileContent.trim().length === 0) {
-    throw new Error('文件内容为空');
-  }
-
-  try {
-    const data = parseFileContent(fileContent, fileName);
-    return await generateChart(data);
-  } catch (error) {
-    throw new Error(`文件解析失败: ${error instanceof Error ? error.message : String(error)}`);
+  constructor(id: number, text: string, completed: boolean) {
+    this.id = id;
+    this.text = text;
+    this.completed = completed;
   }
 }
 
-/**
- * 解析用户输入的文本
- * 尝试解析为JSON，失败则返回原始文本
- */
-export function parseUserInput(text: string): UserData {
-  // 尝试解析为JSON
-  if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
-    try {
-      const parsed = JSON.parse(text) as object;
-      return parsed;
-    } catch {
-      // JSON解析失败，继续作为原始文本处理
+@Component
+export struct HomePage {
+  @State timerValue: number = 25 * 60; // 25分钟的秒数
+  @State pomodoroTarget: number = 8;
+  @State pomodoroCompleted: number = 3;
+  @State tasks: Task[] = [
+    new Task(1, '设计番茄钟界面', false),
+    new Task(2, '准备周会演示文稿', true)
+  ];
+  @State newTaskText: string = '';
+
+  // 添加任务
+  addTask() {
+    if (this.newTaskText.trim() === '') return;
+    const newId = this.tasks.length > 0 ? Math.max(...this.tasks.map(t => t.id)) + 1 : 1;
+    this.tasks.push(new Task(newId, this.newTaskText.trim(), false));
+    this.newTaskText = ''; // 清空输入框
+  }
+
+  // 删除任务
+  deleteTask(taskId: number) {
+    this.tasks = this.tasks.filter(task => task.id !== taskId);
+  }
+
+  // 将秒格式化为 MM:SS
+  formatTime(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    const formattedMinutes = String(minutes).padStart(2, '0');
+    const formattedSeconds = String(remainingSeconds).padStart(2, '0');
+    return `${formattedMinutes}:${formattedSeconds}`;
+  }
+
+  build() {
+    Column() {
+      // 顶部栏: 标题和设置
+      Row() {
+        Text('番茄钟')
+          .fontSize(24)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+
+        Blank()
+
+        Text('⚙️')
+          .fontSize(28)
+          .onClick(() => {
+            console.info('点击设置图标');
+            router.pushUrl({ url: 'pages/SettingsPage' });
+          })
+      }
+      .width('90%')
+      .padding({ top: 20, bottom: 40 })
+
+      // 计时器圆环
+      Stack({ alignContent: Alignment.Center }) {
+        Progress({ value: 100, type: ProgressType.Ring })
+          .width(280)
+          .style({ strokeWidth: 20 })
+          .color('#1F3C53')
+
+        Progress({ value: 100, total: 100, type: ProgressType.Ring })
+          .width(280)
+          .style({ strokeWidth: 20 })
+          .color('#007DFF')
+
+        Text(this.formatTime(this.timerValue))
+          .fontSize(60)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+      }
+      .margin({ bottom: 50 })
+
+      // 开始按钮
+      Button('开始', { type: ButtonType.Capsule, stateEffect: true })
+        .width('80%')
+        .height(50)
+        .fontSize(18)
+        .fontWeight(FontWeight.Bold)
+        .backgroundColor('#007DFF')
+        .margin({ bottom: 40 })
+        .onClick(() => {
+          router.pushUrl({ url: 'pages/FocusProgressPage' });
+        })
+
+      Scroll(){
+        Column(){
+          // 今日番茄数卡片
+          this.PomodoroStatsCard()
+
+          // 今日任务卡片
+          this.TasksCard()
+        }.width('100%').alignItems(HorizontalAlign.Center)
+      }.width('100%')
+
     }
+    .width('100%')
+    .height('100%')
+    .backgroundColor('#1C1C1C')
+    .padding({ left: 15, right: 15 })
+    .alignItems(HorizontalAlign.Center)
   }
-  // 返回原始文本或CSV解析结果
-  return parseCSV(text);
-}
 
-// 解析CSV行的辅助函数（ArkTS不支持嵌套函数，需要提取到外部）
-function parseCSVLine(line: string): string[] {
-    const fields: string[] = [];
-    let currentField = '';
-    let inQuotes = false;
-    let i = 0;
+  @Builder
+  PomodoroStatsCard(){
+    Column() {
+      Row() {
+        Text('今日番茄数')
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+        Blank()
+      }
+      .margin({ bottom: 10 })
 
-    while (i < line.length) {
-      const char = line[i];
-      const nextChar = i + 1 < line.length ? line[i + 1] : '';
-
-      if (char === '"') {
-        if (inQuotes && nextChar === '"') {
-          // 转义的引号
-          currentField += '"';
-          i += 2;
-        } else if (inQuotes && nextChar === ',') {
-          // 引号结束，后面是逗号
-          inQuotes = false;
-          i += 2;
-        } else if (!inQuotes && currentField.length === 0) {
-          // 引号开始
-          inQuotes = true;
-          i++;
-        } else {
-          // 普通引号字符（在引号内）
-          currentField += char;
-          i++;
+      Row().alignItems(VerticalAlign.Center) {
+        Text(`已完成 ${this.pomodoroCompleted} 个，目标 ${this.pomodoroTarget} 个`)
+          .fontSize(14)
+          .fontColor(Color.Gray)
+        Blank()
+        Stack({ alignContent: Alignment.Center }) {
+          Progress({ value: (this.pomodoroCompleted / this.pomodoroTarget) * 100, type: ProgressType.Ring })
+            .width(50)
+            .style({ strokeWidth: 8 })
+            .color('#007DFF')
+          Text(`${this.pomodoroCompleted}/${this.pomodoroTarget}`)
+            .fontSize(12)
+            .fontColor(Color.White)
         }
-      } else if (char === ',' && !inQuotes) {
-        // 字段分隔符
-        fields.push(currentField.trim());
-        currentField = '';
-        i++;
-      } else {
-        currentField += char;
-        i++;
       }
     }
+    .padding(20)
+    .width('90%')
+    .backgroundColor('#252525')
+    .borderRadius(15)
+    .margin({ bottom: 20 })
+    .onClick(() => {
+      router.pushUrl({ url: 'pages/PomodoroStatsPage' });
+    })
+  }
 
-    // 添加最后一个字段
-    fields.push(currentField.trim());
+  @Builder
+  TasksCard(){
+    Column() {
+      Text('今日任务')
+        .fontSize(16)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(Color.White)
+        .alignSelf(ItemAlign.Start)
+        .margin({ bottom: 15 })
 
-  return fields;
-}
+      // 任务列表
+      Column() {
+        ForEach(this.tasks, (item: Task) => {
+          Row() {
+            Checkbox({ name: `task_${item.id}`, group: 'tasks' })
+              .select(item.completed)
+              .selectedColor('#007DFF')
+              .onChange((isSelected: boolean) => {
+                const taskIndex = this.tasks.findIndex(t => t.id === item.id);
+                if (taskIndex !== -1) {
+                  this.tasks[taskIndex].completed = isSelected;
+                  this.tasks = [...this.tasks]; // 强制刷新
+                }
+              })
 
-/**
- * 解析CSV格式数据（支持引号、转义等复杂情况）
- * 实现RFC 4180标准的CSV解析
- */
-export function parseCSV(csvText: string): CSVData | string {
-  const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
-  if (lines.length === 0) return csvText;
+            Text(item.text)
+              .fontSize(14)
+              .fontColor(item.completed ? Color.Gray : Color.White)
+              .decoration({ type: item.completed ? TextDecorationType.LineThrough : TextDecorationType.None })
+              .margin({ left: 10 })
 
-  try {
-    // 解析表头
-    const headers = parseCSVLine(lines[0]).map(h => {
-      // 移除引号（如果存在）
-      return h.replace(/^"|"$/g, '');
-    });
+            Blank()
 
-    if (headers.length === 0) {
-      return csvText;
-    }
-
-    // 解析数据行
-    const rows = lines.slice(1).map(line => {
-      const values = parseCSVLine(line).map(v => {
-        // 移除引号（如果存在）
-        return v.replace(/^"|"$/g, '');
-      });
-      // 确保每行的列数与表头一致
-      while (values.length < headers.length) {
-        values.push('');
+            Text('×')
+              .fontSize(20)
+              .fontColor(Color.Gray)
+              .onClick(() => this.deleteTask(item.id))
+          }
+          .alignItems(VerticalAlign.Center)
+          .padding({ top: 8, bottom: 8 })
+        }, (item: Task) => item.id.toString())
       }
-      // 创建CSVDataRow对象（ArkTS不支持对象字面量类型，需要明确类型）
-      const row: CSVDataRow = { values: values.slice(0, headers.length) };
-      return row;
-    });
 
-    // 过滤掉空行
-    const validRows = rows.filter(row => 
-      row.values.some(v => v.trim().length > 0)
-    );
+      // 添加新任务
+      Row() {
+        TextInput({ placeholder: '添加新任务...', text: this.newTaskText })
+          .onChange((value: string) => {
+            this.newTaskText = value;
+          })
+          .onSubmit(() => {
+            this.addTask();
+          })
+          .layoutWeight(1)
+          .height(40)
+          .backgroundColor('#333333')
+          .fontColor(Color.White)
+          .placeholderColor(Color.Gray)
+          .borderRadius(20)
+          .padding({left:15})
 
-    if (validRows.length === 0) {
-      return csvText;
+        Button('+')
+          .width(40)
+          .height(40)
+          .fontSize(20)
+          .margin({ left: 10 })
+          .type(ButtonType.Circle)
+          .backgroundColor('#007DFF')
+          .onClick(() => this.addTask())
+      }
+      .margin({ top: 15 })
+
     }
-
-    const result: CSVData = { headers, data: validRows };
-    return result;
-  } catch (error) {
-    console.error('CSV解析失败:', error);
-    // 解析失败时返回原始文本
-    return csvText;
+    .padding(20)
+    .width('90%')
+    .backgroundColor('#252525')
+    .borderRadius(15)
   }
 }
-
-/**
- * 根据文件扩展名解析文件内容
- */
-export function parseFileContent(content: string, fileName: string): UserData {
-  const ext = fileName.split('.').pop()?.toLowerCase();
-  
-  switch (ext) {
-    case 'json':
-      try {
-        const parsed = JSON.parse(content) as object;
-        return parsed;
-      } catch {
-        throw new Error('JSON文件格式无效');
-      }
-    case 'csv':
-      return parseCSV(content);
-    case 'txt':
-    default:
-      return parseUserInput(content);
-  }
-}
-
-

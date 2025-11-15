@@ -284,17 +284,17 @@ export const RESOURCES: Resources = {
     MESSAGE_FILE_UPLOADED: 'message_file_uploaded'
   },
   COLORS: {
-    PRIMARY: 'color_primary',
-    PRIMARY_LIGHT: 'color_primary_light',
-    PRIMARY_DARK: 'color_primary_dark',
-    ACCENT: 'color_accent',
-    BACKGROUND: 'color_background',
-    SURFACE: 'color_surface',
-    ERROR: 'color_error',
-    WARNING: 'color_warning',
-    SUCCESS: 'color_success',
-    TEXT_PRIMARY: 'color_text_primary',
-    TEXT_SECONDARY: 'color_text_secondary'
+    PRIMARY: '#2196F3', // 蓝色主色调
+    PRIMARY_LIGHT: '#64B5F6', // 浅蓝色
+    PRIMARY_DARK: '#1976D2', // 深蓝色
+    ACCENT: '#FF9800', // 橙色强调色
+    BACKGROUND: '#1A202C', // 深色背景（深蓝灰）
+    SURFACE: '#2D3748', // 卡片背景（稍浅的深灰）
+    ERROR: '#F44336', // 错误红色
+    WARNING: '#FF9800', // 警告橙色
+    SUCCESS: '#4CAF50', // 成功绿色
+    TEXT_PRIMARY: '#FFFFFF', // 主文本白色
+    TEXT_SECONDARY: '#A0AEC0' // 次要文本浅灰
   },
   DIMENSIONS: {
     PADDING_SMALL: 'dimen_padding_small',

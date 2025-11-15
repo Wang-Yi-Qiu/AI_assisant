@@ -76,8 +76,27 @@ function getApiBase(): string {
   const base = getEnv("DASHSCOPE_API_BASE");
   return (base?.replace(/\/$/, "") || API_BASE_DEFAULT);
 }
-function getApiKey(): string | undefined {
-  return getEnv("DASHSCOPE_API_KEY");
+/**
+ * 获取 API Key：优先使用用户提供的 Key，如果没有则使用服务端默认 Key
+ * @param req 请求对象，用于获取请求头中的用户 API Key
+ * @returns API Key 字符串，如果都不存在则返回 undefined
+ */
+function getApiKey(req?: Request): string | undefined {
+  // 优先从请求头获取用户提供的 API Key
+  if (req) {
+    const userApiKey = req.headers.get("X-User-Api-Key");
+    if (userApiKey && userApiKey.trim().length > 0) {
+      console.log("使用用户提供的 API Key");
+      return userApiKey.trim();
+    }
+  }
+  
+  // 降级到服务端默认 Key（用于免费试用或未设置 Key 的用户）
+  const serverKey = getEnv("DASHSCOPE_API_KEY");
+  if (serverKey) {
+    console.log("使用服务端默认 API Key");
+  }
+  return serverKey;
 }
 function getModel(): string {
   return getEnv("QWEN_MODEL") || "qwen-plus";
@@ -109,14 +128,13 @@ const focusInsightPrompt = `你是专注力分析专家。基于用户提供的�
 
 确保返回的JSON格式严格符合要求，不要包含任何非JSON文本。`;
 
-async function callQwen(messages: Array<{ role: string; content: string }>, signal?: AbortSignal) {
-  const API_KEY = getApiKey();
+async function callQwen(messages: Array<{ role: string; content: string }>, apiKey: string, signal?: AbortSignal) {
   const API_BASE = getApiBase();
   const MODEL = getModel();
-  if (!API_KEY) throw new Error("DASHSCOPE_API_KEY missing");
+  if (!apiKey) throw new Error("API Key missing");
   const res = await fetch(`${API_BASE}/chat/completions`, {
     method: "POST",
-    headers: { "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({ 
       model: MODEL, 
       temperature: 0, 
@@ -163,8 +181,28 @@ function getFallbackInsight(type: "chart" | "focus"): any {
 export default Deno.serve(async (req) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
-  const hasKey = Boolean(getApiKey());
-  console.log(JSON.stringify({ requestId, timestamp: new Date().toISOString(), action: 'insight_generation_start', hasDashscopeKey: hasKey }));
+  
+  // 获取 API Key（优先用户 Key，降级到服务端 Key）
+  const apiKey = getApiKey(req);
+  const hasKey = Boolean(apiKey);
+  const isUserKey = Boolean(req.headers.get("X-User-Api-Key"));
+  
+  console.log(JSON.stringify({ 
+    requestId, 
+    timestamp: new Date().toISOString(), 
+    action: 'insight_generation_start', 
+    hasDashscopeKey: hasKey,
+    isUserKey: isUserKey
+  }));
+  
+  // 如果没有 API Key，返回降级提示
+  if (!apiKey) {
+    const fallback = getFallbackInsight(body?.type || "chart");
+    return new Response(
+      JSON.stringify(fallback),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }
   
   const ctrl = new AbortController();
   // 5秒超时
@@ -210,7 +248,7 @@ export default Deno.serve(async (req) => {
       { role: "user", content: userContent }
     ];
 
-    const qwenResponse = await callQwen(messages, ctrl.signal);
+    const qwenResponse = await callQwen(messages, apiKey, ctrl.signal);
     clearTimeout(timeout);
 
     // 解析Qwen响应（应该是JSON格式）

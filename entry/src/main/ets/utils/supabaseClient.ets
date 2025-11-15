@@ -226,3 +226,122 @@ export async function saveChart(chartConfig: ChartConfig): Promise<void> {
     throw new Error('保存图表记录失败');
   }
 }
+
+/**
+ * Supabase 健康检查结果接口
+ */
+export interface SupabaseHealthResult {
+  available: boolean;
+  message: string;
+  statusCode?: number;
+}
+
+/**
+ * 检查 Supabase 项目健康状态
+ * 通过访问 REST API 的健康检查端点来验证项目是否可用
+ * @returns Promise<SupabaseHealthResult>
+ */
+export async function checkSupabaseHealth(): Promise<SupabaseHealthResult> {
+  try {
+    const baseUrl: string = getSupabaseUrl().replace(/\/$/, '');
+    const anonKey: string = getSupabaseAnonKey();
+    
+    if (!anonKey) {
+      const result: SupabaseHealthResult = {
+        available: false,
+        message: '缺少 Supabase anon key 配置'
+      };
+      return result;
+    }
+
+    // 尝试访问 Supabase REST API 的健康检查端点
+    // 使用一个简单的查询来验证连接
+    const url: string = `${baseUrl}/rest/v1/`;
+    const httpRequest = http.createHttp();
+    
+    try {
+      const response = await httpRequest.request(url, {
+        method: http.RequestMethod.GET,
+        header: {
+          'apikey': anonKey,
+          'Authorization': `Bearer ${anonKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        expectDataType: http.HttpDataType.STRING,
+        connectTimeout: 5000,
+        readTimeout: 5000,
+      });
+      httpRequest.destroy();
+
+      // Supabase REST API 根路径通常返回 200 或 404，但只要能连接就说明项目可用
+      if (response.responseCode === 200 || response.responseCode === 404) {
+        const result: SupabaseHealthResult = {
+          available: true,
+          message: 'Supabase 项目连接正常',
+          statusCode: response.responseCode
+        };
+        return result;
+      } else if (response.responseCode === 401) {
+        const result: SupabaseHealthResult = {
+          available: false,
+          message: 'Supabase 认证失败，请检查 anon key 是否正确',
+          statusCode: response.responseCode
+        };
+        return result;
+      } else {
+        const result: SupabaseHealthResult = {
+          available: false,
+          message: `Supabase 返回异常状态码: ${response.responseCode}`,
+          statusCode: response.responseCode
+        };
+        return result;
+      }
+    } catch (requestError) {
+      httpRequest.destroy();
+      if (requestError instanceof Error) {
+        throw requestError;
+      } else {
+        throw new Error(String(requestError));
+      }
+    }
+  } catch (error) {
+    console.error('Supabase 健康检查失败:', error);
+    
+    if (error instanceof Error) {
+      const errorMsg = error.message.toLowerCase();
+      
+      // 网络连接错误
+      if (errorMsg.includes('network') || errorMsg.includes('timeout') || 
+          errorMsg.includes('connection') || errorMsg.includes('连接') ||
+          errorMsg.includes('超时') || errorMsg.includes('网络')) {
+        const result: SupabaseHealthResult = {
+          available: false,
+          message: '无法连接到 Supabase 服务器，请检查网络连接或项目是否已暂停'
+        };
+        return result;
+      }
+      
+      // DNS 解析错误
+      if (errorMsg.includes('dns') || errorMsg.includes('host') || errorMsg.includes('域名')) {
+        const result: SupabaseHealthResult = {
+          available: false,
+          message: '无法解析 Supabase 域名，请检查 URL 配置是否正确'
+        };
+        return result;
+      }
+      
+      const result: SupabaseHealthResult = {
+        available: false,
+        message: `连接失败: ${error.message}`
+      };
+      return result;
+    }
+    
+    const result: SupabaseHealthResult = {
+      available: false,
+      message: 'Supabase 健康检查失败，未知错误'
+    };
+    return result;
+  }
+}

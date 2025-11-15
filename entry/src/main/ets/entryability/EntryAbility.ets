@@ -1,7 +1,8 @@
-import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
+import { AbilityConstant, ConfigurationConstant, UIAbility, Want, common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { setAppConfig } from '../utils/config';
+import { setGlobalContext } from '../utils/sampleDataManager';
 import util from '@ohos.util';
 
 const DOMAIN = 0x0000;
@@ -21,6 +22,14 @@ export default class EntryAbility extends UIAbility {
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
 
+    // 设置全局上下文，供样本数据加载使用
+    try {
+      setGlobalContext(this.context as common.UIAbilityContext);
+      hilog.info(DOMAIN, 'testTag', '%{public}s', 'Global context set for sample data loading');
+    } catch (err) {
+      hilog.warn(DOMAIN, 'testTag', 'Failed to set global context. Cause: %{public}s', JSON.stringify(err));
+    }
+
     // 尝试从 rawfile 读取 Supabase 配置（可选）
     try {
       const rm = this.context.resourceManager;
@@ -35,7 +44,13 @@ export default class EntryAbility extends UIAbility {
         supabaseUrl: url,
         supabaseAnonKey: anon,
       });
-      hilog.info(DOMAIN, 'testTag', '%{public}s', 'Loaded supabase config from rawfile');
+      hilog.info(DOMAIN, 'testTag', 'Loaded supabase config from rawfile. URL: %{public}s, Key length: %{public}d', 
+        url || 'undefined', anon ? anon.length : 0);
+      console.log('[EntryAbility] Supabase配置已加载:', {
+        url: url || 'undefined',
+        hasKey: !!anon,
+        keyLength: anon ? anon.length : 0
+      });
     } catch (e) {
       // 原则：配置缺失不崩溃，仅记录
       hilog.warn(DOMAIN, 'testTag', 'No supabase.json or parse error. Using defaults. Cause: %{public}s', JSON.stringify(e));
@@ -50,7 +65,7 @@ export default class EntryAbility extends UIAbility {
     // Main window is created, set main page for this ability
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
 
-    windowStage.loadContent('pages/Index', (err) => {
+    windowStage.loadContent('pages/SplashPage', (err) => {
       if (err.code) {
         hilog.error(DOMAIN, 'testTag', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
         return;
