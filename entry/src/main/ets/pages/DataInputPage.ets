@@ -9,17 +9,20 @@ import { generateChart, ChartConfig, UserData } from '../utils/aiService';
 import { setChartOption } from './ChartPage';
 import { ErrorHandler } from '../utils/errorHandler';
 
+// 定义表格数据行类型（使用Map替代索引签名）
+type TableRow = Map<string, string>;
+
 @Entry
 @Component
 export struct DataInputPage {
   @State isLoading: boolean = false;
   @State loadingMessage: string = '正在生成图表...';
-  @State tableData: Array<{ [key: string]: string }> = [];
+  @State tableData: TableRow[] = [];
   @State headers: string[] = ['字段1', '字段2', '字段3']; // 默认表头
   @State rowCount: number = 3;
   @State columnCount: number = 3;
 
-  aboutToAppear() {
+  aboutToAppear(): void {
     console.info('[DataInputPage] 页面初始化');
     this.initializeTable();
   }
@@ -30,9 +33,9 @@ export struct DataInputPage {
   initializeTable(): void {
     this.tableData = [];
     for (let i = 0; i < this.rowCount; i++) {
-      const row: { [key: string]: string } = {};
+      const row: TableRow = new Map<string, string>();
       for (let j = 0; j < this.columnCount; j++) {
-        row[this.headers[j]] = '';
+        row.set(this.headers[j], '');
       }
       this.tableData.push(row);
     }
@@ -43,9 +46,9 @@ export struct DataInputPage {
    * 添加新行
    */
   addRow(): void {
-    const newRow: { [key: string]: string } = {};
+    const newRow: Map<string, string> = new Map<string, string>();
     for (let j = 0; j < this.columnCount; j++) {
-      newRow[this.headers[j]] = '';
+      newRow.set(this.headers[j], '');
     }
     this.tableData.push(newRow);
     this.rowCount++;
@@ -73,7 +76,7 @@ export struct DataInputPage {
 
     // 为现有行添加新列
     this.tableData.forEach(row => {
-      row[newColumnName] = '';
+      row.set(newColumnName, '');
     });
 
     console.info('[DataInputPage] 添加新列:', newColumnName);
@@ -90,7 +93,7 @@ export struct DataInputPage {
 
       // 从所有行中删除该列
       this.tableData.forEach(row => {
-        delete row[columnName];
+        row.delete(columnName);
       });
 
       console.info('[DataInputPage] 删除列:', columnName);
@@ -102,7 +105,7 @@ export struct DataInputPage {
    */
   updateCell(rowIndex: number, columnName: string, value: string): void {
     if (this.tableData[rowIndex]) {
-      this.tableData[rowIndex][columnName] = value;
+      this.tableData[rowIndex].set(columnName, value);
     }
   }
 
@@ -116,9 +119,12 @@ export struct DataInputPage {
 
       // 更新所有行中的键名
       this.tableData.forEach(row => {
-        if (row.hasOwnProperty(oldName)) {
-          row[value] = row[oldName];
-          delete row[oldName];
+        if (row.has(oldName)) {
+          const oldValue = row.get(oldName);
+          if (oldValue !== undefined) {
+            row.set(value, oldValue);
+          }
+          row.delete(oldName);
         }
       });
     }
@@ -177,6 +183,11 @@ export struct DataInputPage {
     }
   }
 
+  // 定义数据行类型，用于存储最终处理后的数据
+interface ProcessedRow {
+  [key: string]: string | number;
+}
+
   /**
    * 验证并准备数据
    */
@@ -187,8 +198,14 @@ export struct DataInputPage {
       console.info('[DataInputPage] 表头:', this.headers);
 
       // 过滤有效行（至少有一个非空字段）
-      const validRows = this.tableData.filter(row => {
-        return Object.values(row).some(value => value && value.trim() !== '');
+      const validRows: Map<string, string>[] = this.tableData.filter(row => {
+        let hasValidValue = false;
+        row.forEach((value) => {
+          if (value && value.trim() !== '') {
+            hasValidValue = true;
+          }
+        });
+        return hasValidValue;
       });
 
       console.info('[DataInputPage] 有效数据行数:', validRows.length);
@@ -198,10 +215,10 @@ export struct DataInputPage {
       }
 
       // 转换数据格式，自动识别数字
-      const processedData = validRows.map(row => {
-        const processedRow: any = {};
+      const processedData: ProcessedRow[] = validRows.map(row => {
+        const processedRow: ProcessedRow = {};
         this.headers.forEach(header => {
-          const value = row[header];
+          const value = row.get(header);
           if (value && value.trim() !== '') {
             // 尝试转换为数字
             const numValue = Number(value);
@@ -298,7 +315,7 @@ export struct DataInputPage {
           Column() {
             // 表头
             Row() {
-              ForEach(this.headers, (header, index) => {
+              ForEach(this.headers, (header: string, index?: number) => {
                 TextInput({ text: header })
                   .width('120')
                   .height(40)
@@ -310,7 +327,7 @@ export struct DataInputPage {
                   .onChange((value: string) => {
                     this.updateHeader(index as number, value);
                   })
-              }, (header: string, index: number) => index.toString())
+              }, (header: string, index?: number) => (index ?? 0).toString())
 
               // 删除列按钮
               if (this.headers.length > 1) {
@@ -331,11 +348,11 @@ export struct DataInputPage {
             .margin({ bottom: 10 })
 
             // 数据行
-            ForEach(this.tableData, (row, rowIndex) => {
+            ForEach(this.tableData, (row: Map<string, string>, rowIndex?: number) => {
               Row() {
-                ForEach(this.headers, (header) => {
+                ForEach(this.headers, (header: string) => {
                   TextInput({
-                    text: row[header] || '',
+                    text: row.get(header) || '',
                     placeholder: '请输入数据'
                   })
                     .width('120')
@@ -367,7 +384,7 @@ export struct DataInputPage {
               .width('100%')
               .justifyContent(FlexAlign.Start)
               .margin({ bottom: 8 })
-            }, (row: any, rowIndex: number) => rowIndex.toString())
+            }, (row: Map<string, string>, rowIndex?: number) => (rowIndex ?? 0).toString())
           }
           .width('90%')
           .padding(15)

@@ -25,7 +25,7 @@ export struct ChartTypeSelectorPage {
   @State selectedType: string = '';
   @State isLoading: boolean = false;
 
-  aboutToAppear() {
+  aboutToAppear(): void {
     console.info('[ChartTypeSelectorPage] 页面初始化');
     this.initializeChartTypes();
   }
@@ -122,10 +122,8 @@ export struct ChartTypeSelectorPage {
       this.isLoading = true;
 
       // 构建包含图表类型的用户数据
-      const userData: UserData = {
-        ...originalData,
-        chartType: this.selectedType
-      };
+      const userData: UserData = Object.assign({}, originalData);
+      userData.chartType = this.selectedType;
 
       // 调用AI服务生成图表配置
       const chartConfig: ChartConfig = await generateChart(userData);
@@ -165,7 +163,7 @@ export struct ChartTypeSelectorPage {
    * 构建图表类型卡片
    */
   @Builder
-  ChartTypeCard(chartType: ChartType) {
+  ChartTypeCard(chartType: ChartType): void {
     Column() {
       // 图标
       Text(chartType.icon)
@@ -270,11 +268,11 @@ export struct ChartTypeSelectorPage {
 
           // 图表类型网格
           Grid() {
-            ForEach(this.chartTypes, (chartType: ChartType) => {
+            ForEach(this.chartTypes, (chartType: ChartType, index?: number) => {
               GridItem() {
                 this.ChartTypeCard(chartType)
               }
-            }, (chartType: ChartType) => chartType.id)
+            }, (chartType: ChartType, index?: number) => chartType.id)
           }
           .columnsTemplate('1fr 1fr')
           .rowsTemplate('1fr 1fr 1fr')
