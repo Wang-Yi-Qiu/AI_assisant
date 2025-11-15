@@ -4,6 +4,7 @@ import webview from '@ohos.web.webview';
 import picker from '@ohos.file.picker';
 import fs from '@ohos.file.fs';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { util } from '@kit.ArkTS';
 
 // 全局变量存储图表配置
 let globalChartConfig: ChartConfig | null = null;
@@ -83,12 +84,17 @@ function applyChartConfigWithRetry(config: ChartConfig, retryCount: number): voi
       }
     })()`;
 
+    if (!webviewController) {
+      console.error('[ChartPage] WebView 控制器未初始化');
+      return;
+    }
+
     webviewController.runJavaScript(jsCode)
       .then((result) => {
         console.info('[ChartPage] JavaScript 执行结果:', result);
 
         try {
-          const parsedResult = JSON.parse(result);
+          const parsedResult: { success: boolean; error?: string; stage?: string; result?: string } = JSON.parse(result);
           if (parsedResult.success) {
             console.info('[ChartPage] ✅ 图表配置设置成功！');
           } else {
@@ -326,7 +332,7 @@ export struct ChartPage {
       `;
 
       const result = await webviewController.runJavaScript(jsCode);
-      const parsedResult = JSON.parse(result);
+      const parsedResult: { success: boolean; dataURL?: string; error?: string } = JSON.parse(result);
 
       if (parsedResult.success) {
         await this.saveImageFile(parsedResult.dataURL, 'chart.png');
@@ -360,23 +366,19 @@ export struct ChartPage {
       const base64Data = dataURL.replace(/^data:image\/png;base64,/, '');
 
       // 将base64转换为ArrayBuffer
-      const binaryString = atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
+      const base64 = new util.Base64Helper();
+      const uint8Array: Uint8Array = base64.decodeSync(base64Data);
 
       // 使用文件保存器保存文件
-      const documentSavePicker = new picker.DocumentSavePicker();
-      documentSavePicker.saveOption = {
-        name: fileName,
-        type: 'image/png'
-      };
+      const documentViewPicker = new picker.DocumentViewPicker();
+      const documentSaveOptions = new picker.DocumentSaveOptions();
+      documentSaveOptions.newFileNames = [fileName];
+      documentSaveOptions.fileSuffixChoices = ['.png'];
 
-      const uri = await documentSavePicker.save();
+      const uri = await documentViewPicker.save(documentSaveOptions);
       if (uri) {
         const file = fs.openSync(uri, fs.OpenMode.WRITE_ONLY);
-        fs.writeSync(file.fd, bytes);
+        fs.writeSync(file.fd, uint8Array);
         fs.closeSync(file);
         console.info('[ChartPage] 文件保存成功:', uri);
       }
