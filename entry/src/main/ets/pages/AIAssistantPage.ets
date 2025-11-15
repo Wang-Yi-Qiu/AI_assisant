@@ -1,6 +1,7 @@
 import router from '@ohos.router';
 import { generateChart, ChartConfig, UserData } from '../utils/aiService';
 import { loadSampleData, getSampleDataList, SampleDataset } from '../utils/sampleDataManager';
+import { getSampleChartList, SampleChart } from '../utils/sampleChartManager';
 import { setChartOption } from './ChartPage';
 import { ErrorHandler } from '../utils/errorHandler';
 import { getGlobalContext } from '../utils/sampleDataManager';
@@ -12,10 +13,26 @@ export struct AIAssistantPage {
   @State isLoading: boolean = false;
   @State loadingMessage: string = '正在生成图表...';
   @State sampleDataList: SampleDataset[] = getSampleDataList();
+  @State sampleChartList: SampleChart[] = getSampleChartList();
+  @State showSampleDataDialog: boolean = false;
 
   aboutToAppear() {
-    // 页面加载时获取样本数据列表
+    // 页面加载时获取样本数据列表和示例图表列表
     this.sampleDataList = getSampleDataList();
+    this.sampleChartList = getSampleChartList();
+  }
+
+  /**
+   * 使用示例图表
+   */
+  handleUseSampleChart(sampleChart: SampleChart) {
+    console.info('[AIAssistantPage] 使用示例图表:', sampleChart.id);
+    setChartOption(sampleChart.chartConfig);
+    router.pushNamedRoute({
+      name: 'ChartPage'
+    }).catch((err: BusinessError) => {
+      console.error('跳转到图表页失败:', err);
+    });
   }
 
   /**
@@ -64,8 +81,8 @@ export struct AIAssistantPage {
       console.info('[AIAssistantPage] 图表配置已设置，准备跳转');
 
       // 5. 跳转到图表页面
-      await router.pushUrl({
-        url: 'pages/ChartPage'
+      await router.pushNamedRoute({
+        name: 'ChartPage'
       });
       
       console.info('[AIAssistantPage] 已跳转到图表页面');
@@ -85,90 +102,161 @@ export struct AIAssistantPage {
     }
   }
 
-  build() {
-    Column() {
-      // 顶部标题区域（固定）
-      Column() {
-        Text('AI 智能数据可视化助手')
+  /**
+   * 构建操作按钮
+   */
+  @Builder
+  ActionButton(icon: string, text: string, isPrimary: boolean, onClick: () => void) {
+    Button() {
+      Row() {
+        Text(icon)
           .fontSize(24)
+          .margin({ right: 10 })
+        Text(text)
+          .fontSize(18)
           .fontWeight(FontWeight.Bold)
           .fontColor(Color.White)
-          .padding({ top: 20, bottom: 10 })
-
-        Text('上传 CSV 文件或手动输入数据，\n开始您的第一次数据可视化。')
-          .fontSize(14)
-          .fontColor(Color.Gray)
-          .textAlign(TextAlign.Center)
       }
       .width('100%')
-      .padding({ left: 20, right: 20, bottom: 20 })
+      .justifyContent(FlexAlign.Center)
+    }
+    .type(ButtonType.Capsule)
+    .stateEffect(true)
+    .width('90%')
+    .height(56)
+    .backgroundColor(isPrimary ? '#007DFF' : '#252525')
+    .border(isPrimary ? undefined : { width: 1, color: '#007DFF', style: BorderStyle.Solid })
+    .margin({ bottom: 15 })
+    .enabled(!this.isLoading)
+    .onClick(onClick)
+  }
 
-      // 可滚动内容区域
+  /**
+   * 构建示例图表卡片
+   */
+  @Builder
+  SampleChartCard(sampleChart: SampleChart) {
+    Column() {
+      Text(sampleChart.icon)
+        .fontSize(40)
+        .margin({ bottom: 10 })
+      Text(sampleChart.name)
+        .fontSize(12)
+        .fontColor(Color.Gray)
+        .margin({ bottom: 4 })
+      Text(sampleChart.description)
+        .fontSize(10)
+        .fontColor('#666666')
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .padding(10)
+    .backgroundColor('#1C1C1C')
+    .borderRadius(15)
+    .onClick(() => {
+      this.handleUseSampleChart(sampleChart);
+    })
+  }
+
+  /**
+   * 构建示例数据选择项
+   */
+  @Builder
+  SampleDataItem(sample: SampleDataset) {
+    Row() {
+      Column() {
+        Text(sample.name)
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(Color.White)
+          .alignSelf(ItemAlign.Start)
+        Text(sample.description)
+          .fontSize(12)
+          .fontColor(Color.Gray)
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .alignSelf(ItemAlign.Start)
+          .margin({ top: 4 })
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+
+      Text('→')
+        .fontSize(20)
+        .fontColor('#007DFF')
+    }
+    .width('100%')
+    .padding(15)
+    .backgroundColor('#252525')
+    .borderRadius(10)
+    .margin({ bottom: 10 })
+    .onClick(() => {
+      this.showSampleDataDialog = false;
+      this.handleUseSampleData(sample.id);
+    })
+  }
+
+  build() {
+    Stack() {
+      // 主内容区域 - 可滚动
       Scroll() {
         Column() {
-          // 功能按钮
-          Button('上传数据', { type: ButtonType.Capsule, stateEffect: true })
-            .width('90%')
-            .height(50)
-            .fontSize(18)
-            .fontWeight(FontWeight.Bold)
-            .backgroundColor('#007DFF')
-            .margin({ bottom: 15 })
-            .onClick(() => {
-              // 添加上传逻辑
-              console.info('点击上传数据');
-            })
-
-          Button('手动输入', { type: ButtonType.Capsule, stateEffect: true })
-            .width('90%')
-            .height(50)
-            .fontSize(18)
-            .fontWeight(FontWeight.Bold)
-            .backgroundColor('#252525')
-            .margin({ bottom: 20 })
-            .onClick(() => {
-              // 添加手动输入逻辑
-              console.info('点击手动输入');
-            })
-
-          // 示例数据选择区域
+          // 顶部标题区域
           Column() {
-            Text('选择示例数据')
-              .fontSize(16)
+            Text('AI 智能数据可视化助手')
+              .fontSize(24)
               .fontWeight(FontWeight.Bold)
               .fontColor(Color.White)
-              .alignSelf(ItemAlign.Start)
-              .margin({ bottom: 15 })
-            
-            // 示例数据列表
-            Column() {
-              ForEach(this.sampleDataList, (sample: SampleDataset) => {
-                Button(sample.name, { type: ButtonType.Normal, stateEffect: true })
-                  .width('100%')
-                  .height(45)
-                  .fontSize(14)
-                  .backgroundColor('#252525')
-                  .fontColor(Color.White)
-                  .margin({ bottom: 10 })
-                  .enabled(!this.isLoading)
-                  .onClick(() => {
-                    this.handleUseSampleData(sample.id);
-                  })
-              }, (sample: SampleDataset) => sample.id)
-            }
-            .width('100%')
-          }
-          .width('90%')
-          .padding(15)
-          .backgroundColor('#252525')
-          .borderRadius(15)
-          .margin({ bottom: 20 })
+              .margin({ top: 20, bottom: 12 })
 
-          // 历史图表
+            Text('上传 CSV 文件或手动输入数据')
+              .fontSize(14)
+              .fontColor(Color.Gray)
+              .textAlign(TextAlign.Center)
+              .margin({ bottom: 4 })
+
+            Text('开始您的第一次数据可视化')
+              .fontSize(14)
+              .fontColor(Color.Gray)
+              .textAlign(TextAlign.Center)
+          }
+          .width('100%')
+          .padding({ left: 20, right: 20, bottom: 30 })
+          .alignItems(HorizontalAlign.Center)
+
+          // 数据输入操作区 - 三个主要操作按钮
+          Column() {
+            // 上传数据按钮（主色调）
+            this.ActionButton('📄', '上传数据', true, () => {
+              console.info('点击上传数据');
+              // TODO: 实现文件选择器逻辑
+            })
+
+            // 手动输入按钮（深色背景，亮色边框）
+            this.ActionButton('✍️', '手动输入', false, () => {
+              console.info('点击手动输入');
+              // TODO: 导航到数据手动输入页面
+            })
+
+            // 使用示例数据按钮（深色背景，亮色边框）
+            this.ActionButton('📊', '使用示例数据', false, () => {
+              console.info('点击使用示例数据');
+              // 显示示例数据选择对话框
+              this.showSampleDataDialog = true;
+            })
+          }
+          .width('100%')
+          .margin({ bottom: 30 })
+
+          // 历史图表区
           Column() {
             Row() {
               Text('历史图表')
-                .fontSize(16)
+                .fontSize(18)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(Color.White)
               Blank()
@@ -176,50 +264,39 @@ export struct AIAssistantPage {
             .width('100%')
             .margin({ bottom: 15 })
 
+            // 示例图表网格布局
             Grid() {
-              GridItem() {
-                Column()
-                  .width('100%')
-                  .height('100%')
-                  .backgroundColor('#1C1C1C')
-                  .borderRadius(15)
-                  .onClick(() => router.pushUrl({ url: 'pages/ChartPage' }))
-              }
-              GridItem() {
-                Column()
-                  .width('100%')
-                  .height('100%')
-                  .backgroundColor('#1C1C1C')
-                  .borderRadius(15)
-                  .onClick(() => router.pushUrl({ url: 'pages/ChartPage' }))
-              }
-              GridItem() {
-                Column()
-                  .width('100%')
-                  .height('100%')
-                  .backgroundColor('#1C1C1C')
-                  .borderRadius(15)
-                  .onClick(() => router.pushUrl({ url: 'pages/ChartPage' }))
-              }
+              ForEach(this.sampleChartList, (sampleChart: SampleChart) => {
+                GridItem() {
+                  this.SampleChartCard(sampleChart)
+                }
+              }, (sampleChart: SampleChart) => sampleChart.id)
             }
             .columnsTemplate('1fr 1fr')
             .rowsTemplate('1fr 1fr')
-            .columnsGap(10)
-            .rowsGap(10)
+            .columnsGap(12)
+            .rowsGap(12)
             .width('100%')
-            .height(200)
+            .height(220)
           }
           .width('90%')
           .margin({ bottom: 20 })
+
+          // 底部间距，确保内容不会被遮挡
+          Column()
+            .height(100)
+            .width('100%')
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
-        .padding({ bottom: 20 })
       }
-      .layoutWeight(1)
       .width('100%')
+      .height('100%')
+      .scrollable(ScrollDirection.Vertical) // 明确指定垂直滚动
+      .scrollBar(BarState.Auto) // 自动显示滚动条
+      .edgeEffect(EdgeEffect.Spring) // 添加弹性效果
 
-      // 加载状态提示（固定在底部）
+      // 加载状态提示（覆盖在顶层）
       if (this.isLoading) {
         Column() {
           LoadingProgress()
@@ -233,6 +310,65 @@ export struct AIAssistantPage {
         .width('100%')
         .padding(20)
         .backgroundColor('#1C1C1C')
+        .position({ x: 0, y: '70%' }) // 固定在底部位置
+      }
+
+      // 示例数据选择对话框（覆盖在顶层）
+      if (this.showSampleDataDialog) {
+        Stack() {
+          // 背景遮罩
+          Column()
+            .width('100%')
+            .height('100%')
+            .backgroundColor('rgba(0, 0, 0, 0.5)')
+            .onClick(() => {
+              this.showSampleDataDialog = false;
+            })
+
+          // 对话框内容
+          Column() {
+            // 标题栏
+            Row() {
+              Text('选择示例数据')
+                .fontSize(18)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(Color.White)
+              Blank()
+              Text('✕')
+                .fontSize(24)
+                .fontColor(Color.Gray)
+                .onClick(() => {
+                  this.showSampleDataDialog = false;
+                })
+            }
+            .width('100%')
+            .padding(15)
+            .border({ width: 0, color: Color.Transparent })
+
+            Divider()
+              .color('#333333')
+
+            // 示例数据列表
+            Scroll() {
+              Column() {
+                ForEach(this.sampleDataList, (sample: SampleDataset) => {
+                  this.SampleDataItem(sample)
+                }, (sample: SampleDataset) => sample.id)
+              }
+              .width('100%')
+              .padding(15)
+            }
+            .layoutWeight(1)
+            .width('100%')
+          }
+          .width('90%')
+          .height('70%')
+          .backgroundColor('#252525')
+          .borderRadius(15)
+          .alignSelf(ItemAlign.Center)
+        }
+        .width('100%')
+        .height('100%')
       }
     }
     .width('100%')
