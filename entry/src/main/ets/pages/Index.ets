@@ -4,7 +4,7 @@ import { SettingsPage } from './SettingsPage';
 
 @Entry
 @Component
-struct Index {
+export struct Index {
   @State currentIndex: number = 0;
 
   @Builder TabBuilder(title: string, index: number) {

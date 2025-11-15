@@ -16,7 +16,7 @@ interface CompletedTask {
 
 @Entry
 @Component
-export struct PomodoroStatsPage {
+struct PomodoroStatsPage {
   @State selectedTab: 'week' | 'month' | 'year' = 'month';
   @State todayFocusMinutes: number = 128;
   @State yesterdayIncreasePercent: number = 15;

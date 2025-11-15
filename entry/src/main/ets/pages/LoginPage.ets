@@ -244,8 +244,8 @@ struct LoginPage {
    */
   private async navigateToHome() {
     try {
-      await router.replaceUrl({
-        url: 'pages/Index'
+      await router.replaceNamedRoute({
+        name: 'Index'
       });
     } catch (error) {
       console.error('导航失败:', error);
@@ -265,8 +265,8 @@ struct LoginPage {
     try {
       const authState = authService.getAuthState();
       if (authState.isAuthenticated) {
-        await router.replaceUrl({
-          url: 'pages/Index'
+        await router.replaceNamedRoute({
+          name: 'Index'
         });
       }
     } catch (error) {

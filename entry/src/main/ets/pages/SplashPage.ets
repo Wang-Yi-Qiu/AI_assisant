@@ -14,8 +14,10 @@ struct SplashPage {
   @State isAnimating: boolean = true;
 
   aboutToAppear() {
+    console.info('[SplashPage] 页面开始加载');
     // 初始进度设置为约25%（1/4）
     this.progress = 25;
+    console.info('[SplashPage] 初始进度设置为 25%');
     // 启动进度条动画
     this.startProgressAnimation();
   }
@@ -24,6 +26,7 @@ struct SplashPage {
    * 启动进度条动画
    */
   startProgressAnimation() {
+    console.info('[SplashPage] 开始进度条动画');
     // 模拟加载过程，进度条从25%到100%
     const duration = 1000; // 总时长1秒
     const steps = 60; // 60步
@@ -34,10 +37,12 @@ struct SplashPage {
     const timer = setInterval(() => {
       currentStep++;
       this.progress = Math.min(25 + currentStep * stepProgress, 100);
+      console.info(`[SplashPage] 进度: ${this.progress.toFixed(1)}%`);
 
       // 当进度达到100%时，跳转到主页面
       if (this.progress >= 100) {
         clearInterval(timer);
+        console.info('[SplashPage] 动画完成，准备跳转到主页');
         this.navigateToHome();
       }
     }, stepDuration);
@@ -47,13 +52,27 @@ struct SplashPage {
    * 跳转到主页面
    */
   navigateToHome() {
+    console.info('[SplashPage] 开始跳转到主页');
     // 延迟一小段时间确保动画完成
     setTimeout(() => {
-      // 使用 replaceUrl 替换当前页面，避免启动页留在路由栈中
+      console.info('[SplashPage] 执行路由跳转到 pages/Index');
+      // 尝试使用 replaceUrl 避免返回到启动页
       router.replaceUrl({
         url: 'pages/Index'
+      }).then(() => {
+        console.info('[SplashPage] 跳转到主页成功');
       }).catch((err: BusinessError) => {
-        console.error('跳转到主页失败:', err);
+        console.error('[SplashPage] 跳转到主页失败:', err);
+        console.error('[SplashPage] 错误详情:', JSON.stringify(err));
+        // 如果 replaceUrl 失败，尝试 pushUrl
+        console.info('[SplashPage] 尝试使用 pushUrl 作为备选方案');
+        router.pushUrl({
+          url: 'pages/Index'
+        }).then(() => {
+          console.info('[SplashPage] pushUrl 跳转成功');
+        }).catch((pushErr: BusinessError) => {
+          console.error('[SplashPage] pushUrl 也失败:', pushErr);
+        });
       });
     }, 100);
   }
@@ -63,11 +82,20 @@ struct SplashPage {
    * 启动页不应该被返回，直接跳转到主页
    */
   onBackPress(): boolean {
+    console.info('[SplashPage] 用户按下返回键，跳转到主页');
     // 如果用户按返回键，直接跳转到主页
     router.replaceUrl({
       url: 'pages/Index'
+    }).then(() => {
+      console.info('[SplashPage] 返回键跳转主页成功');
     }).catch((err: BusinessError) => {
-      console.error('跳转到主页失败:', err);
+      console.error('[SplashPage] 返回键跳转主页失败:', err);
+      // 备选方案
+      router.pushUrl({
+        url: 'pages/Index'
+      }).catch((pushErr: BusinessError) => {
+        console.error('[SplashPage] 返回键备选方案也失败:', pushErr);
+      });
     });
     // 返回 true 表示已处理返回事件，阻止默认行为
     return true;

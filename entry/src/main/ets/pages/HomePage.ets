@@ -61,7 +61,7 @@ export struct HomePage {
           .fontSize(28)
           .onClick(() => {
             console.info('点击设置图标');
-            router.pushUrl({ url: 'pages/SettingsPage' });
+            router.pushNamedRoute({ name: 'SettingsPage' });
           })
       }
       .width('90%')
@@ -95,18 +95,26 @@ export struct HomePage {
         .backgroundColor('#007DFF')
         .margin({ bottom: 40 })
         .onClick(() => {
-          router.pushUrl({ url: 'pages/FocusProgressPage' });
+          router.pushNamedRoute({ name: 'FocusProgressPage' });
         })
 
-      Scroll(){
-        Column(){
+      Scroll() {
+        Column() {
           // 今日番茄数卡片
           this.PomodoroStatsCard()
 
           // 今日任务卡片
           this.TasksCard()
-        }.width('100%').alignItems(HorizontalAlign.Center)
-      }.width('100%')
+        }
+        .width('100%')
+        .alignItems(HorizontalAlign.Center)
+        .padding({ bottom: 20 }) // 添加底部内边距，确保内容不被底部导航栏遮挡
+      }
+      .width('100%')
+      .layoutWeight(1) // 添加布局权重，确保滚动区域占据剩余空间
+      .scrollable(ScrollDirection.Vertical) // 明确指定垂直滚动
+      .scrollBar(BarState.Auto) // 自动显示滚动条
+      .edgeEffect(EdgeEffect.Spring) // 添加弹性滚动效果
 
     }
     .width('100%')
@@ -150,7 +158,7 @@ export struct HomePage {
     .borderRadius(15)
     .margin({ bottom: 20 })
     .onClick(() => {
-      router.pushUrl({ url: 'pages/PomodoroStatsPage' });
+      router.pushNamedRoute({ name: 'PomodoroStatsPage' });
     })
   }
 

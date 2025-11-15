@@ -130,7 +130,7 @@ export async function loadSampleData(sampleId: string, context?: common.UIAbilit
     try {
       const bytes: Uint8Array = rm.getRawFileContentSync(sampleData.filePath);
       const decoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
-      rawFileContent = decoder.decodeWithStream(new Uint8Array(bytes), { stream: false });
+      rawFileContent = decoder.decodeWithStream(bytes, { stream: false });
     } catch (fileError) {
       const errorMessage = fileError instanceof Error ? fileError.message : String(fileError);
       if (errorMessage.includes('not found') || errorMessage.includes('ENOENT') || errorMessage.includes('文件不存在')) {

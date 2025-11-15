@@ -2,7 +2,7 @@ import router from '@ohos.router';
 
 @Entry
 @Component
-export struct FocusProgressPage {
+struct FocusProgressPage {
   @State timerValue: number = 25 * 60; // 25分钟
   @State isPaused: boolean = false;
   @State currentTask: string = "设计一个新的Logo"; // 示例任务

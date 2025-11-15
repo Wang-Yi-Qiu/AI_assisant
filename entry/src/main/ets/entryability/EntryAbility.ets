@@ -11,6 +11,7 @@ const DOMAIN = 0x0000;
 interface SupabaseConfig {
   supabaseUrl?: string;
   anonKey?: string;
+  supabaseAnonKey?: string; // 支持两种字段名
 }
 
 export default class EntryAbility extends UIAbility {
@@ -36,10 +37,10 @@ export default class EntryAbility extends UIAbility {
       const bytes: Uint8Array = rm.getRawFileContentSync('supabase.json');
       const decoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
       // 使用 decodeWithStream 方法（decode 已弃用）
-      const text: string = decoder.decodeWithStream(new Uint8Array(bytes), { stream: false });
+      const text: string = decoder.decodeWithStream(bytes, { stream: false });
       const parsed = JSON.parse(text) as SupabaseConfig;
       const url: string | undefined = parsed?.supabaseUrl;
-      const anon: string | undefined = parsed?.anonKey;
+      const anon: string | undefined = parsed?.anonKey || parsed?.supabaseAnonKey;
       setAppConfig({
         supabaseUrl: url,
         supabaseAnonKey: anon,
