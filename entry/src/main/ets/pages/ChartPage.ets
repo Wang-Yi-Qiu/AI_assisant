@@ -1,10 +1,42 @@
 import router from '@ohos.router';
-import { ChartConfig, UserData } from '../utils/aiService';
+import { ChartConfig, UserData, generateChart } from '../utils/aiService';
 import webview from '@ohos.web.webview';
 import picker from '@ohos.file.picker';
 import fs from '@ohos.file.fs';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { util } from '@kit.ArkTS';
+
+// 定义接口
+interface ChartExecutionResult {
+  success: boolean;
+  error?: string;
+  stage?: string;
+  result?: string;
+}
+
+interface PNGExportResult {
+  success: boolean;
+  dataURL?: string;
+  error?: string;
+}
+
+interface DataWithArray {
+  data: unknown[];
+}
+
+// 辅助函数：安全地获取数据长度
+function getDataLength(userData: UserData): number {
+  if (typeof userData === 'object' && userData !== null && 'data' in userData) {
+    const dataArray = (userData as DataWithArray).data;
+    return Array.isArray(dataArray) ? dataArray.length : 0;
+  }
+  return typeof userData === 'string' ? userData.length : 0;
+}
+
+// 辅助函数：检查UserData是否有有效的数据
+function hasValidData(userData: UserData): boolean {
+  return getDataLength(userData) > 0;
+}
 
 // 全局变量存储图表配置
 let globalChartConfig: ChartConfig | null = null;
@@ -27,7 +59,7 @@ export function setChartOption(config: ChartConfig, originalData?: UserData): vo
   // 如果提供了原始数据，保存起来用于重新生成
   if (originalData) {
     globalOriginalData = originalData;
-    console.info('[ChartPage] 原始数据已保存，数据行数:', originalData.data?.length || 0);
+    console.info('[ChartPage] 原始数据已保存，数据行数:', getDataLength(originalData));
   }
 
   // 如果 WebView 已经加载，立即设置图表配置
@@ -51,7 +83,7 @@ export function getOriginalData(): UserData | null {
  */
 export function setOriginalData(data: UserData): void {
   globalOriginalData = data;
-  console.info('[ChartPage] 原始数据已设置，数据行数:', data.data?.length || 0);
+  console.info('[ChartPage] 原始数据已设置，数据行数:', getDataLength(data));
 }
 
 /**
@@ -117,7 +149,7 @@ function applyChartConfigWithRetry(config: ChartConfig, retryCount: number): voi
         console.info('[ChartPage] JavaScript 执行结果:', result);
 
         try {
-          const parsedResult: { success: boolean; error?: string; stage?: string; result?: string } = JSON.parse(result);
+          const parsedResult: ChartExecutionResult = JSON.parse(result);
           if (parsedResult.success) {
             console.info('[ChartPage] ✅ 图表配置设置成功！');
           } else {
@@ -162,6 +194,7 @@ export struct ChartPage {
   @State isLoading: boolean = true;
   @State chartConfig: ChartConfig | null = globalChartConfig;
   @State errorMessage: string = '';
+  @State loadingMessage: string = '正在加载图表...';
   @State loadTimeout: number = 0; // 用于存储超时定时器ID
   controller?: webview.WebviewController;
 
@@ -355,9 +388,9 @@ export struct ChartPage {
       `;
 
       const result = await webviewController.runJavaScript(jsCode);
-      const parsedResult: { success: boolean; dataURL?: string; error?: string } = JSON.parse(result);
+      const parsedResult: PNGExportResult = JSON.parse(result);
 
-      if (parsedResult.success) {
+      if (parsedResult.success && parsedResult.dataURL) {
         await this.saveImageFile(parsedResult.dataURL, 'chart.png');
         console.info('[ChartPage] PNG导出完成');
       } else {
@@ -394,9 +427,12 @@ export struct ChartPage {
 
       // 使用文件保存器保存文件
       const documentViewPicker = new picker.DocumentViewPicker();
+      const documentSelectOptions = new picker.DocumentSelectOptions();
+      documentSelectOptions.maxSelectNumber = 1;
+
       const documentSaveOptions = new picker.DocumentSaveOptions();
+      documentSaveOptions.pickerMode = picker.DocumentPickerMode.SAVE_MODE;
       documentSaveOptions.newFileNames = [fileName];
-      documentSaveOptions.fileSuffixChoices = ['.png'];
 
       const uri = await documentViewPicker.save(documentSaveOptions);
       if (uri) {
@@ -423,24 +459,23 @@ export struct ChartPage {
 
       // 检查是否有原始数据
       const originalData = getOriginalData();
-      if (!originalData || !originalData.data || originalData.data.length === 0) {
+      if (!originalData || !hasValidData(originalData)) {
         throw new Error('没有原始数据用于重新生成图表');
       }
 
-      console.info('[ChartPage] 使用原始数据重新生成图表，数据行数:', originalData.data.length);
+      console.info('[ChartPage] 使用原始数据重新生成图表，数据行数:', getDataLength(originalData));
 
       this.isLoading = true;
       this.loadingMessage = '正在重新生成图表...';
 
-      // 导入generateChart函数
-      const { generateChart } = await import('../utils/aiService');
+      // generateChart函数已从模块导入
 
       // 如果指定了图表类型，可以在这里处理
       let userData = originalData;
       if (chartType) {
         // 可以根据chartType调整用户数据的配置
         console.info('[ChartPage] 指定图表类型:', chartType);
-        userData = { ...originalData, chartType };
+        userData = Object.assign({}, originalData, { chartType });
       }
 
       // 调用AI服务重新生成图表配置
