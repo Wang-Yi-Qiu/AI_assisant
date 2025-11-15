@@ -10,6 +10,9 @@ import picker from '@ohos.file.picker';
 import fs from '@ohos.file.fs';
 import { util } from '@kit.ArkTS';
 
+// 定义数据行类型（ArkTS不支持索引签名，使用Map）
+type DataRow = Map<string, string | number>;
+
 @Entry
 @Component
 export struct AIAssistantPage {
@@ -119,18 +122,15 @@ export struct AIAssistantPage {
       this.loadingMessage = '正在选择文件...';
 
       // 创建文件选择器
-      const documentPicker = new picker.DocumentPicker();
-      documentPicker.selectMultiple = false; // 单选文件
+      const documentSelectOptions = new picker.DocumentSelectOptions();
+      documentSelectOptions.maxSelectNumber = 1; // 单选文件
 
-      // 设置支持的文件类型
-      documentPicker.MimeType = {
-        type: 'text/csv'
-      };
+      const documentViewPicker = new picker.DocumentViewPicker();
 
       console.info('[AIAssistantPage] 文件选择器已初始化');
 
       // 打开文件选择器
-      const uriList = await documentPicker.select();
+      const uriList = await documentViewPicker.select(documentSelectOptions);
       console.info('[AIAssistantPage] 文件选择结果:', uriList);
 
       if (uriList && uriList.length > 0) {
@@ -255,17 +255,17 @@ export struct AIAssistantPage {
       }
 
       // 解析数据行
-      const data: any[] = [];
+      const data: DataRow[] = [];
       for (let i = 1; i < lines.length; i++) {
         try {
           const values = this.parseCSVLine(lines[i]);
           if (values.length === headers.length) {
-            const rowObject: any = {};
+            const rowObject: DataRow = new Map<string, string | number>();
             headers.forEach((header, index) => {
               const value = values[index];
               // 尝试转换为数字，如果失败则保持字符串
               const numValue = Number(value);
-              rowObject[header.trim()] = isNaN(numValue) ? value.trim() : numValue;
+              rowObject.set(header.trim(), isNaN(numValue) ? value.trim() : numValue);
             });
             data.push(rowObject);
           }
