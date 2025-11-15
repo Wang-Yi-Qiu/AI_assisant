@@ -1,6 +1,9 @@
 import router from '@ohos.router';
 import { ChartConfig } from '../utils/aiService';
 import webview from '@ohos.web.webview';
+import picker from '@ohos.file.picker';
+import fs from '@ohos.file.fs';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 // 全局变量存储图表配置
 let globalChartConfig: ChartConfig | null = null;
@@ -287,6 +290,101 @@ export struct ChartPage {
     .onClick(onClick)
   }
 
+  /**
+   * 导出PNG图片
+   */
+  async exportPNG(): Promise<void> {
+    if (!webviewController) {
+      console.error('[ChartPage] WebView控制器未初始化');
+      return;
+    }
+
+    try {
+      console.info('[ChartPage] 开始导出PNG图片');
+
+      // 调用JavaScript导出图表
+      const jsCode = `
+        (function() {
+          try {
+            console.log('开始导出PNG...');
+            if (window.chartAPI && window.chartAPI.exportImage) {
+              const dataURL = window.chartAPI.exportImage({
+                type: 'png',
+                backgroundColor: '#1C1C1C', // 深色背景
+                pixelRatio: 2
+              });
+              console.log('PNG导出成功，数据长度:', dataURL.length);
+              return JSON.stringify({ success: true, dataURL: dataURL });
+            } else {
+              return JSON.stringify({ success: false, error: '图表未初始化或导出功能不可用' });
+            }
+          } catch (e) {
+            console.error('PNG导出失败:', e);
+            return JSON.stringify({ success: false, error: e.toString() });
+          }
+        })()
+      `;
+
+      const result = await webviewController.runJavaScript(jsCode);
+      const parsedResult = JSON.parse(result);
+
+      if (parsedResult.success) {
+        await this.saveImageFile(parsedResult.dataURL, 'chart.png');
+        console.info('[ChartPage] PNG导出完成');
+      } else {
+        console.error('[ChartPage] PNG导出失败:', parsedResult.error);
+      }
+    } catch (error) {
+      console.error('[ChartPage] PNG导出异常:', error);
+    }
+  }
+
+  /**
+   * 导出PDF文件（简化版，实际应用中可能需要更复杂的实现）
+   */
+  async exportPDF(): Promise<void> {
+    // HarmonyOS的PDF导出相对复杂，这里先提供基础实现
+    // 可以通过打印服务或第三方库实现
+    console.info('[ChartPage] PDF导出功能开发中...');
+
+    // 临时实现：先导出PNG，后续可扩展为PDF
+    await this.exportPNG();
+  }
+
+  /**
+   * 保存图片文件到本地
+   */
+  private async saveImageFile(dataURL: string, fileName: string): Promise<void> {
+    try {
+      // 从dataURL中提取base64数据
+      const base64Data = dataURL.replace(/^data:image\/png;base64,/, '');
+
+      // 将base64转换为ArrayBuffer
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      // 使用文件保存器保存文件
+      const documentSavePicker = new picker.DocumentSavePicker();
+      documentSavePicker.saveOption = {
+        name: fileName,
+        type: 'image/png'
+      };
+
+      const uri = await documentSavePicker.save();
+      if (uri) {
+        const file = fs.openSync(uri, fs.OpenMode.WRITE_ONLY);
+        fs.writeSync(file.fd, bytes);
+        fs.closeSync(file);
+        console.info('[ChartPage] 文件保存成功:', uri);
+      }
+    } catch (error) {
+      console.error('[ChartPage] 保存文件失败:', error);
+    }
+  }
+
   build() {
     Column() {
       // 头部导航栏
@@ -514,15 +612,15 @@ export struct ChartPage {
       // 底部操作按钮区
       Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.SpaceBetween }) {
         // 导出 PNG
-        this.ActionButton('🖼️', '导出 PNG', false, () => {
+        this.ActionButton('🖼️', '导出 PNG', false, async () => {
           console.info('导出 PNG 被点击');
-          // TODO: 实现导出 PNG 逻辑
+          await this.exportPNG();
         })
 
         // 导出 PDF
-        this.ActionButton('📄', '导出 PDF', false, () => {
+        this.ActionButton('📄', '导出 PDF', false, async () => {
           console.info('导出 PDF 被点击');
-          // TODO: 实现导出 PDF 逻辑
+          await this.exportPDF();
         })
 
         // 重新生成

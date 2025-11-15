@@ -204,27 +204,34 @@
             }
         }
 
-        // 导出图片
+        // 导出图片 - 增强版本，支持深色主题和自定义选项
         function exportChart(options = {}) {
             try {
+                console.log('========== 开始导出图表 ==========');
+                console.log('导出选项:', options);
+
                 if (!isInitialized || !chart) {
                     throw new Error('图表未初始化');
                 }
 
                 const defaultOptions = {
                     type: 'png',
-                    backgroundColor: '#ffffff',
+                    backgroundColor: '#1C1C1C', // 深色背景，与应用主题一致
                     pixelRatio: window.devicePixelRatio || 2,
                     excludeComponents: ['toolbox']
                 };
 
                 const exportOptions = { ...defaultOptions, ...options };
-                const dataURL = chart.getDataURL(exportOptions);
+                console.log('最终导出选项:', exportOptions);
 
-                console.log('图表导出成功');
+                const dataURL = chart.getDataURL(exportOptions);
+                console.log('图表导出成功，数据长度:', dataURL.length);
+                console.log('导出类型:', exportOptions.type);
+
                 return dataURL;
             } catch (error) {
-                console.error('导出图表失败:', error);
+                console.error('❌ 导出图表失败:', error);
+                console.error('错误详情:', error.message, error.stack);
                 throw error;
             }
         }
