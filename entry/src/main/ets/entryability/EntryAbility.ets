@@ -26,7 +26,8 @@ export default class EntryAbility extends UIAbility {
       const rm = this.context.resourceManager;
       const bytes: Uint8Array = rm.getRawFileContentSync('supabase.json');
       const decoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
-      const text: string = decoder.decode(bytes);
+      // 使用 decodeWithStream 方法（decode 已弃用）
+      const text: string = decoder.decodeWithStream(new Uint8Array(bytes), { stream: false });
       const parsed = JSON.parse(text) as SupabaseConfig;
       const url: string | undefined = parsed?.supabaseUrl;
       const anon: string | undefined = parsed?.anonKey;

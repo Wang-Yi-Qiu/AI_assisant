@@ -6,11 +6,14 @@
 
 import { BusinessError } from '@kit.BasicServicesKit';
 
+// 资源管理器接口
+interface ResourceManagerInterface {
+  getStringValue: (resourceId: string) => Promise<string>;
+  getNumberById: (resourceId: string) => Promise<number>;
+}
+
 interface ResourceManagerContext {
-  resourceManager: {
-    getStringValue: (resourceId: string) => Promise<string>;
-    getNumberById: (resourceId: string) => Promise<number>;
-  };
+  resourceManager: ResourceManagerInterface;
 }
 
 interface AppConfig {
@@ -180,27 +183,31 @@ export class ResourceManager {
     return this.resourceCache.size;
   }
 
-/**
+  /**
    * 获取应用配置
    */
   getAppConfig(): AppConfig {
-    return {
+    // ArkTS不支持对象字面量类型，需要明确类型
+    const config: AppConfig = {
       version: '1.0.0',
       buildNumber: '1',
       isDebug: false // 这里应该根据构建配置设置
     };
+    return config;
   }
 
   /**
    * 获取设备信息
    */
   getDeviceInfo(): DeviceInfo {
-    return {
+    // ArkTS不支持对象字面量类型，需要明确类型
+    const info: DeviceInfo = {
       model: 'HarmonyOS Device',
       brand: 'Huawei',
       osVersion: '4.0',
       screenDensity: 3.0
     };
+    return info;
   }
 }
 

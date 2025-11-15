@@ -42,11 +42,18 @@ export enum ErrorCode {
   NOT_FOUND = 'NOT_FOUND'
 }
 
-interface ErrorDetails {
-  originalError?: Error | object | string;
+export interface ErrorDetails {
+  originalError?: Error | object | string | null | undefined;
   stack?: string;
   context?: string;
   timestamp?: string;
+}
+
+// API错误对象接口（放在类外面）
+interface ApiErrorObject {
+  code?: string;
+  status?: number;
+  statusCode?: number;
 }
 
 export class AppError extends Error {
@@ -122,11 +129,11 @@ export class ErrorHandler {
 
   /**
    * 处理错误并返回用户友好的错误消息
-   * @param error 错误对象
+   * @param error 错误对象（ArkTS不支持unknown，使用联合类型）
    * @param context 错误发生的上下文
    * @returns 用户友好的错误消息
    */
-  static handle(error: unknown, context?: string): AppError {
+  static handle(error: Error | object | string | null | undefined, context?: string): AppError {
     // 记录详细错误信息用于调试
     console.error(`[ErrorHandler] ${context || 'Unknown Context'}:`, error);
 
@@ -137,33 +144,59 @@ export class ErrorHandler {
 
     // 处理网络错误
     if (ErrorHandler.isNetworkError(error)) {
+      // 过滤 undefined，确保类型匹配
+      const originalError: Error | object | string | null = 
+        (error === undefined || error === null) ? null : 
+        (typeof error === 'string' ? error : (error as Error | object));
       return new AppError(
         ErrorCode.NETWORK_ERROR,
         `Network error in ${context}`,
         ErrorHandler.getErrorMessage(ErrorCode.NETWORK_ERROR),
-        { originalError: error }
+        { originalError: originalError }
       );
     }
 
     // 处理API错误
     if (ErrorHandler.isApiError(error)) {
-      const errorCode = ErrorHandler.getApiErrorCode(error);
+      // 确保 error 是 object 类型才能调用 getApiErrorCode
+      // 如果 error 不是 object，创建一个默认的 ApiErrorObject
+      let errorObj: object;
+      if (typeof error === 'object' && error !== null) {
+        errorObj = error as object;
+      } else {
+        // 创建一个符合 ApiErrorObject 接口的空对象
+        const defaultError: ApiErrorObject = {};
+        errorObj = defaultError;
+      }
+      const errorCode = ErrorHandler.getApiErrorCode(errorObj);
+      // 过滤 undefined，确保类型匹配
+      const originalError: Error | object | string | null = 
+        (error === undefined || error === null) ? null : 
+        (typeof error === 'string' ? error : (error as Error | object));
       return new AppError(
         errorCode,
         `API error in ${context}`,
         ErrorHandler.getErrorMessage(errorCode),
-        { originalError: error }
+        { originalError: originalError }
       );
     }
 
     // 处理文件相关错误
     if (ErrorHandler.isFileError(error)) {
-      const errorCode = ErrorHandler.getFileErrorCode(error);
+      // 确保 error 不是 undefined 再调用 getFileErrorCode
+      const errorForCode: Error | string | object = 
+        (error === undefined || error === null) ? new Error('File error') : 
+        (typeof error === 'string' ? error : (error as Error | object));
+      const errorCode = ErrorHandler.getFileErrorCode(errorForCode);
+      // 过滤 undefined，确保类型匹配
+      const originalError: Error | object | string | null = 
+        (error === undefined || error === null) ? null : 
+        (typeof error === 'string' ? error : (error as Error | object));
       return new AppError(
         errorCode,
         `File error in ${context}`,
         ErrorHandler.getErrorMessage(errorCode),
-        { originalError: error }
+        { originalError: originalError }
       );
     }
 
@@ -182,22 +215,36 @@ export class ErrorHandler {
       ErrorCode.UNKNOWN_ERROR,
       'Unknown error occurred',
       ErrorHandler.getErrorMessage(ErrorCode.UNKNOWN_ERROR),
-      { originalError: error }
+      { originalError: error as Error | object | string | null | undefined }
     );
   }
 
   /**
    * 判断是否为网络错误
    */
-  private static isNetworkError(error: unknown): boolean {
+  private static isNetworkError(error: Error | object | string | null | undefined): boolean {
     if (error instanceof Error) {
-      const message = error.message;
+      const message = error.message.toLowerCase();
       return message.includes('network') ||
-             message.includes('Network') ||
              message.includes('timeout') ||
-             message.includes('Timeout') ||
              message.includes('connection') ||
-             message.includes('Connection');
+             message.includes('连接') ||
+             message.includes('超时') ||
+             message.includes('网络') ||
+             message.includes('econnrefused') ||
+             message.includes('enotfound') ||
+             message.includes('econnreset') ||
+             message.includes('etimedout') ||
+             message.includes('网络连接失败') ||
+             message.includes('网络请求超时');
+    } else if (typeof error === 'string') {
+      const message = error.toLowerCase();
+      return message.includes('network') ||
+             message.includes('timeout') ||
+             message.includes('connection') ||
+             message.includes('连接') ||
+             message.includes('超时') ||
+             message.includes('网络');
     }
     return false;
   }
@@ -205,9 +252,9 @@ export class ErrorHandler {
   /**
    * 判断是否为API错误
    */
-  private static isApiError(error: unknown): boolean {
+  private static isApiError(error: Error | object | string | null | undefined): boolean {
     if (typeof error === 'object' && error !== null) {
-      const errorObj = error as Record<string, unknown>;
+      const errorObj = error as Record<string, string | number | boolean | null | undefined>;
       return errorObj.status !== undefined ||
              errorObj.statusCode !== undefined ||
              errorObj.code !== undefined;
@@ -219,7 +266,7 @@ export class ErrorHandler {
    * 从API错误中获取错误代码
    */
   private static getApiErrorCode(error: object): ErrorCode {
-    const errorObj = error as { code?: string; status?: number; statusCode?: number };
+    const errorObj = error as ApiErrorObject;
     const errorCode = errorObj.code;
 
     if (errorCode) {
@@ -264,7 +311,7 @@ export class ErrorHandler {
   /**
    * 判断是否为文件相关错误
    */
-  private static isFileError(error: unknown): boolean {
+  private static isFileError(error: Error | object | string | null | undefined): boolean {
     if (error instanceof Error) {
       const message = error.message;
       return message.includes('file') ||
@@ -309,12 +356,21 @@ export class ErrorHandler {
    */
   static reportError(error: AppError): void {
     // 这里可以集成错误上报服务
-    console.warn('[ErrorHandler] Error reported:', {
+    // 注意：ArkTS不支持对象字面量作为类型，需要明确类型
+    interface ErrorReport {
+      code: ErrorCode;
+      message: string;
+      userMessage?: string;
+      details?: ErrorDetails;
+      timestamp: string;
+    }
+    const report: ErrorReport = {
       code: error.code,
       message: error.message,
       userMessage: error.userMessage,
       details: error.details,
       timestamp: new Date().toISOString()
-    });
+    };
+    console.warn('[ErrorHandler] Error reported:', report);
   }
 }

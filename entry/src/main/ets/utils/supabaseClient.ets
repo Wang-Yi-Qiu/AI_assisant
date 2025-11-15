@@ -154,6 +154,22 @@ export async function fetchCharts(limit: number = 10): Promise<ChartRecordRow[]>
     return mapped;
   } catch (error) {
     console.error('查询图表记录失败:', error);
+    // 保留原始错误信息，便于调试和用户提示
+    if (error instanceof Error) {
+      // 检查是否是网络相关错误
+      const errorMsg = error.message.toLowerCase();
+      if (errorMsg.includes('network') || errorMsg.includes('timeout') || 
+          errorMsg.includes('connection') || errorMsg.includes('连接') ||
+          errorMsg.includes('超时') || errorMsg.includes('网络')) {
+        throw new Error('网络连接失败，请检查网络设置');
+      }
+      // 检查是否是认证错误
+      if (errorMsg.includes('401') || errorMsg.includes('unauthorized') || errorMsg.includes('认证')) {
+        throw new Error('认证失败，请重新登录');
+      }
+      // 保留原始错误信息
+      throw new Error(`加载图表记录失败: ${error.message}`);
+    }
     throw new Error('加载图表记录失败');
   }
 }
@@ -167,10 +183,17 @@ export async function saveChart(chartConfig: ChartConfig): Promise<void> {
       throw new Error('缺少 Supabase anon key 配置');
     }
 
+    const userId = authService.getUserId();
+    
+    // 如果是匿名用户，不保存到数据库（仅本地使用）
+    if (userId === 'anonymous') {
+      console.log('匿名用户，跳过保存图表到数据库');
+      return;
+    }
+
     const url: string = `${baseUrl}/rest/v1/charts`;
     const title: string = chartConfig?.title?.text || '未命名图表';
     const type: string = chartConfig?.series?.[0]?.type || 'unknown';
-    const userId = authService.getUserId();
     const payload: InsertChartPayload = {
       title: title,
       type: type,

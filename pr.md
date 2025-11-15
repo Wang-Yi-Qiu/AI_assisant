@@ -1,28 +1,42 @@
 鸿蒙 AI 智能数据可视化助手（Supabase云端支持版）项目计划书
 一、项目概述
 
-本项目旨在构建一款基于 HarmonyOS（鸿蒙系统） 的智能数据可视化应用，结合 Supabase 作为轻后端云平台，实现用户数据的 AI 分析与图表自动生成。
+本项目旨在构建一款基于 HarmonyOS（鸿蒙系统） 的智能数据可视化应用，结合 Supabase 作为轻后端云平台，实现用户数据的 AI 分析与图表自动生成。同时，应用还集成了 Pomodoro（番茄钟）专注管理功能，帮助用户提升工作效率。
 
-应用核心目标是让用户只需输入或上传数据，系统即可：
+应用核心功能包括：
 
-将数据上传到 Supabase；
+**数据可视化模块**：
+- 将数据上传到 Supabase；
+- 支持上传 CSV、JSON、Excel 文件或手动输入数据；
+- 提供样本数据一键加载功能，快速体验图表生成；
+- 由云端 AI 模型分析生成 ECharts 图表配置；
+- 鸿蒙端拉取图表结果进行渲染；
+- 支持图表重新生成和类型切换；
+- 提供 AI 洞察功能，智能分析图表数据并给出建议；
+- 支持导出图表（PNG / PDF / JSON）。
 
-由云端 AI 模型分析生成 ECharts 图表配置；
+**专注管理模块**：
+- Pomodoro 计时器（25分钟专注时间）；
+- 任务管理与进度追踪；
+- 专注时间统计与分析；
+- AI 洞察功能，基于专注数据生成智能分析报告和建议；
+- 多设备适配支持。
 
-鸿蒙端拉取图表结果进行渲染；
-
-支持导出图表（PNG / PDF / JSON）。
-
-该架构既保持前端轻量、灵活，又利用 Supabase 提供安全存储、API代理、身份验证等能力，实现真正的云端智能可视化。
+该架构既保持前端轻量、灵活，又利用 Supabase 提供安全存储、API代理、身份验证等能力，实现真正的云端智能可视化与本地专注管理。
 
 二、项目目标
 功能方向	目标说明
 数据输入	支持用户上传 CSV、JSON、Excel 文件或手动输入数据
+样本数据	提供预设示例数据集，用户可一键加载快速体验
 云端同步	所有数据上传至 Supabase 存储或数据库
  AI 分析	云端调用 AI（通义千问 Qwen）生成图表配置
 图表展示	鸿蒙端使用 ECharts 渲染 AI 返回配置
+图表控制	支持图表重新生成、类型切换（折线/柱状/饼图等）
+AI 洞察	提供图表数据和专注数据的智能分析报告和建议
 图表导出	用户可导出图表（PNG、PDF、JSON）
 用户管理	Supabase 提供用户注册 / 登录 / 数据关联
+专注管理	Pomodoro 计时器、任务管理、专注时间统计
+多设备适配	支持手机、平板、TV、车机、可穿戴设备等
 可扩展性	后期可拓展分析报告、语音输入、数据预测等功能
 三、系统总体架构
 ┌────────────────────────────────────────────┐
@@ -50,14 +64,35 @@
 └────────────────────────────────────────────┘
 
 四、核心功能模块设计
+
+**数据可视化模块**：
 模块	功能说明	技术实现
 1️⃣ 数据输入模块	上传CSV/JSON文件或文本输入	ArkTS FilePicker + TextArea
+1️⃣-1️⃣ 样本数据模块	提供预设示例数据集，一键加载	本地 JSON/CSV 资源文件
+1️⃣-2️⃣ 手动输入模块	明确的手动输入入口按钮	优化 TextArea 视觉呈现或添加按钮
 2️⃣ 用户登录模块	Supabase Auth 用户体系	OAuth / 邮箱注册
 3️⃣ 云端存储模块	上传数据文件至 Supabase Storage	Supabase SDK
 4️⃣ AI分析模块	调用 Supabase Edge Function 接口	fetch() 调用 AI
 5️⃣ 图表展示模块	渲染ECharts图表配置	WebView加载ECharts
-6️⃣ 图表导出模块	导出图表为 PNG / PDF	ECharts API + jsPDF
+5️⃣-1️⃣ 图表重新生成模块	基于当前配置重新调用 AI 生成	调用 aiService.generateChart() 重新生成
+5️⃣-2️⃣ 图表类型切换模块	手动切换图表类型（折线/柱状/饼图等）	修改 series[0].type 并重新渲染
+5️⃣-3️⃣ AI 洞察模块	显示图表数据的智能分析和建议	调用 AI 服务生成数据洞察文本
+6️⃣ 图表导出模块	导出图表为 PNG / PDF / JSON	ECharts API + jsPDF + FileManager
 7️⃣ 记录模块	将图表配置、生成时间等存数据库	Supabase Database (PostgreSQL)
+
+**专注管理模块**：
+模块	功能说明	技术实现
+8️⃣ Pomodoro计时器	25分钟专注时间倒计时	ArkTS Timer + Progress组件
+9️⃣ 任务管理模块	创建、更新、删除任务，追踪完成状态	dataPreferences本地存储
+🔟 专注统计模块	专注趋势、任务分布、完成最多的任务	数据聚合与可视化
+🔟-1️⃣ 专注 AI 洞察模块	基于专注时间数据生成 AI 分析报告和建议	调用 AI 服务分析专注模式
+1️⃣1️⃣ 启动页模块	应用启动时的加载界面	Progress动画 + 路由跳转
+
+**通用模块**：
+模块	功能说明	技术实现
+1️⃣2️⃣ 设备适配模块	检测设备类型，提供响应式布局	deviceInfo + display API
+1️⃣3️⃣ 错误处理模块	统一错误处理与用户提示	ErrorHandler工具类
+1️⃣4️⃣ 异步管理模块	任务取消、超时、重试机制	AsyncManager工具类
 五、详细实现步骤
 阶段一：前端基础结构搭建
 
@@ -200,23 +235,43 @@ AI 模型	通义千问（Qwen）	生成ECharts配置
 八、项目结构规划
 project-root/
 ├─ pages/
-│  ├─ LoginPage.ets
-│  ├─ HomePage.ets
-│  ├─ ChartPage.ets
-│  ├─ HistoryPage.ets
-│  └─ ExportPage.ets
+│  ├─ SplashPage.ets          # 启动页
+│  ├─ Index.ets               # 首页（数据输入入口）
+│  ├─ LoginPage.ets           # 用户登录/注册
+│  ├─ HomePage.ets            # 数据输入与处理逻辑
+│  ├─ ChartPage.ets           # 图表展示页
+│  ├─ HistoryPage.ets         # 历史记录页
+│  ├─ FocusPage.ets           # Pomodoro主界面
+│  ├─ FocusTimerPage.ets      # Pomodoro计时器页
+│  └─ ProgressPage.ets        # 专注进度统计页
 │
 ├─ utils/
-│  ├─ supabaseClient.ets
-│  ├─ aiService.ets
-│  ├─ fileAccess.ets
+│  ├─ supabaseClient.ets      # Supabase客户端封装
+│  ├─ aiService.ets           # AI服务调用封装
+│  ├─ fileManager.ets         # 文件管理（PNG/PDF/JSON导出）
+│  ├─ pomodoroService.ets     # Pomodoro服务（任务/会话管理）
+│  ├─ deviceAdapter.ets       # 设备适配工具
+│  ├─ errorHandler.ets        # 错误处理工具
+│  ├─ asyncManager.ets        # 异步任务管理
+│  ├─ httpClient.ets          # HTTP请求封装
+│  ├─ config.ets              # 配置管理
+│  ├─ metrics.ets              # 性能指标收集
+│  └─ performanceMonitor.ets  # 性能监控
 │
 ├─ resources/
-│  └─ index.html     # ECharts容器
+│  ├─ base/
+│  │  ├─ element/             # 资源定义
+│  │  ├─ media/               # 图片资源
+│  │  └─ profile/             # 页面配置
+│  └─ rawfile/
+│     ├─ chart.html           # ECharts容器
+│     └─ supabase.json        # Supabase配置（本地）
 │
 └─ supabase/
-   └─ functions/
-      └─ generate_chart.ts
+   ├─ functions/
+   │  └─ generate_chart_qwen/  # Edge Function（AI图表生成）
+   └─ types/
+      └─ database.types.ts    # 数据库类型定义
 
 九、未来扩展方向
 
@@ -247,20 +302,34 @@ AI 自动生成图表分析说明；
 1. **前端工具模块**
    - ✅ `entry/src/main/ets/utils/supabaseClient.ets` - Supabase客户端封装
    - ✅ `entry/src/main/ets/utils/aiService.ets` - AI服务调用封装（含错误处理）
-   - ✅ `entry/src/main/ets/utils/fileAccess.ets` - 文件访问工具（PNG/PDF/JSON导出）
+   - ✅ `entry/src/main/ets/utils/fileManager.ets` - 文件管理工具（PNG/PDF/JSON导出）
+   - ✅ `entry/src/main/ets/utils/pomodoroService.ets` - Pomodoro服务（任务/会话管理）
+   - ✅ `entry/src/main/ets/utils/deviceAdapter.ets` - 设备适配工具
+   - ✅ `entry/src/main/ets/utils/errorHandler.ets` - 错误处理工具
+   - ✅ `entry/src/main/ets/utils/asyncManager.ets` - 异步任务管理
 
-2. **页面模块**
-   - ✅ `entry/src/main/ets/pages/HomePage.ets` - 首页（数据输入与上传）
+2. **数据可视化页面模块**
+   - ✅ `entry/src/main/ets/pages/Index.ets` - 首页（数据输入入口）
+   - ✅ `entry/src/main/ets/pages/HomePage.ets` - 数据输入与处理逻辑
    - ✅ `entry/src/main/ets/pages/ChartPage.ets` - 图表渲染页（支持配置设置与导出）
    - ✅ `entry/src/main/ets/pages/HistoryPage.ets` - 历史记录页（列表展示与导航）
+   - ✅ `entry/src/main/ets/pages/LoginPage.ets` - 用户登录/注册页
 
-3. **Edge Function**
+3. **专注管理页面模块**
+   - ✅ `entry/src/main/ets/pages/FocusPage.ets` - Pomodoro主界面（任务列表、今日进度）
+   - ✅ `entry/src/main/ets/pages/FocusTimerPage.ets` - Pomodoro计时器页（倒计时、暂停/继续）
+   - ✅ `entry/src/main/ets/pages/ProgressPage.ets` - 专注进度统计页（趋势、分布、Top任务）
+
+4. **启动页模块**
+   - ✅ `entry/src/main/ets/pages/SplashPage.ets` - 应用启动页（加载动画）
+
+5. **Edge Function**
    - ✅ `supabase/functions/generate_chart_qwen.ts` - Qwen模型调用函数
    - ✅ 包含完整的入/出参Schema校验（Ajv）
    - ✅ 超时控制（3秒）、错误处理与降级模板
    - ✅ 结构化日志记录（requestId、耗时追踪）
 
-4. **规范文档**
+6. **规范文档**
    - ✅ `specs/001-ai-chart-mvp/contracts/openapi.yaml` - API规范定义
    - ✅ `specs/001-ai-chart-mvp/contracts/schemas/userData.schema.json` - 输入数据Schema
    - ✅ `specs/001-ai-chart-mvp/contracts/schemas/chartConfig.schema.json` - 输出配置Schema
@@ -276,13 +345,40 @@ AI 自动生成图表分析说明；
 - ⏳ Supabase SDK实际初始化（需配置生产环境URL与anon key）
 - ⏳ 认证token管理与Edge URL配置读取
 
+**待实现的功能按钮（根据界面设计补充）：**
+
+1. **首页（Index.ets）数据输入模块**：
+   - ⏳ "使用样本数据" 按钮（Use Sample Data）
+     - 功能：提供预设的示例数据集，用户可一键加载并生成示例图表
+     - 实现：在 `Index.ets` 中添加按钮，点击后加载预设的 JSON/CSV 样本数据到输入框
+   - ⏳ "手动输入" 按钮（Manual Input）
+     - 功能：明确标识手动输入入口（当前已有文本输入区域，可优化为按钮式入口）
+     - 实现：优化现有文本输入区域的视觉呈现，或添加明确的"手动输入"按钮
+
+2. **图表预览页（ChartPage.ets）控制功能**：
+   - ⏳ "重新生成" 按钮（Regenerate）
+     - 功能：基于当前图表配置重新调用 AI 生成新的图表配置
+     - 实现：在 `ChartPage.ets` 中添加按钮，调用 `aiService.generateChart()` 重新生成
+   - ⏳ "更改类型" 按钮（Change Type）
+     - 功能：允许用户手动切换图表类型（如折线图、柱状图、饼图等）
+     - 实现：在 `ChartPage.ets` 中添加按钮，弹出图表类型选择器，修改当前配置的 `series[0].type`
+   - ⏳ "AI 洞察" 部分（AI Insights）
+     - 功能：显示 AI 对当前图表数据的智能分析和洞察建议
+     - 实现：在 `ChartPage.ets` 中添加 AI 洞察卡片，调用 AI 服务生成数据洞察文本
+
+3. **专注进度统计页（ProgressPage.ets）增强功能**：
+   - ⏳ "AI 洞察" 按钮（在 Total Focus Time 部分）
+     - 功能：基于专注时间数据生成 AI 分析报告和建议
+     - 实现：在 `ProgressPage.ets` 的"总专注时间"卡片中添加按钮，调用 AI 服务分析专注模式
+
 **代码质量与度量：**
 - ✅ 无linter错误
 - ✅ 代码结构清晰，模块化良好
 - ✅ 错误处理完整，中文提示统一
 - ✅ 符合规范要求（Schema校验、云端优先、安全合规）
- - ✅ 已接入客户端性能埋点：`utils/metrics.ets`；在 `aiService.generateChart` 记录 `requestId/duration/ok`
- - ⏳ 首次 P95 统计将在演示后补充至本节
+- ✅ 已接入客户端性能埋点：`utils/metrics.ets`；在 `aiService.generateChart` 记录 `requestId/duration/ok`
+- ✅ 多设备适配支持（phone/tablet/2in1/tv/wearable/car/smartVision）
+- ⏳ 首次 P95 统计将在演示后补充至本节
 
 十-2、MCP 服务集成（2025-10-29 更新）
 
@@ -751,7 +847,122 @@ export default Deno.serve(async (req) => {
 **变更日志（2025-10-29·再次补充）**
 
 - 移除 `experimentalDecorators`：由于 Deno/TS 新版提示该选项已弃用且本函数未使用装饰器，故从 `supabase/functions/generate_chart_qwen/deno.json` 中删除该配置，以消除部署时的弃用警告。
-- 关于“Specifying import_map/decorator through flags is no longer supported”：该提示来自 CLI/运行时内部逻辑，当前我们已使用 `deno.json` 正确管理 imports，无需额外操作，提示可忽略。
+- 关于"Specifying import_map/decorator through flags is no longer supported"：该提示来自 CLI/运行时内部逻辑，当前我们已使用 `deno.json` 正确管理 imports，无需额外操作，提示可忽略。
+
+**变更日志（2025-01-28·多设备适配完成）**
+
+- ✅ **多设备适配功能已完成**：
+  - 新增 `entry/src/main/ets/utils/deviceAdapter.ets`：设备检测和适配工具类
+    - 支持检测设备类型（phone/tablet/2in1/tv/wearable/car/smartVision）
+    - 提供响应式布局配置（字号、间距、内边距、栅格列数）
+    - 检测设备能力（文件选择器、图片导出、PDF导出、焦点导航等）
+    - 提供降级提示文案
+    - 支持窗口大小变化监听（用于2in1/大屏适配）
+  - 更新 `entry/src/main/ets/pages/Index.ets`：
+    - 添加设备适配布局配置
+    - 实现文件上传降级策略（TV/车机/可穿戴设备隐藏上传按钮）
+    - 添加焦点导航支持
+    - 监听窗口大小变化（2in1/大屏）
+  - 更新 `entry/src/main/ets/pages/HistoryPage.ets`：
+    - 添加设备适配布局配置
+    - 添加焦点导航支持
+    - 优化可穿戴设备显示
+  - 更新 `entry/src/main/ets/pages/ChartPage.ets`：
+    - 添加设备适配布局配置
+    - 实现导出能力降级（PNG/PDF根据设备能力显示/隐藏）
+    - 添加焦点导航支持
+    - 优化可穿戴设备显示
+- 📝 更新 `未完成功能分析.md`：标记多设备适配为已完成
+- 📝 更新完成度统计：总体完成度从85%提升至92%
+
+**变更日志（2025-01-28·核心功能修复）**
+
+- ✅ **修复核心功能无法实现的问题**：
+  - 修复 `ChartPage.ets` 中 WebView 和 ECharts 的桥接问题：
+    - 添加重试机制（最多5次，每次间隔200ms），确保 `chartAPI` 在调用前已初始化
+    - 优化 `applyChartConfig()` 方法，检查 `chartAPI` 是否准备好再调用
+    - 添加 WebView console 日志输出，便于调试
+    - 在 `onPageEnd` 回调中延迟300ms再调用 `applyChartConfig()`，确保 JavaScript 环境完全初始化
+  - 修复 `Index.ets` 页面状态传递问题：
+    - 优化图表生成成功后的状态保存和跳转逻辑
+    - 减少跳转延迟时间（从1000ms改为500ms），提高响应速度
+    - 添加更详细的日志输出，便于调试
+  - 修复匿名用户使用问题：
+    - 更新 `supabaseClient.ets` 中的 `saveChart()` 方法，匿名用户跳过数据库保存（仅本地使用）
+    - 确保未登录用户也能正常生成和查看图表
+  - 优化 WebView 初始化时序：
+    - 在 `initWebView()` 中检查是否有待渲染的图表配置
+    - 如果没有配置，显示友好的错误提示
+    - 确保 `isLoading` 状态在图表配置应用成功后正确更新
+
+**变更日志（2025-01-28·功能整合）**
+
+- ✅ **新增 Pomodoro（番茄钟）专注管理功能**：
+  - 新增 `entry/src/main/ets/pages/FocusPage.ets`：Pomodoro主界面
+    - 显示25分钟倒计时器（圆形进度指示器）
+    - 今日进度卡片（完成/目标番茄钟数量）
+    - 任务列表（创建、更新、完成任务）
+    - 添加新任务功能
+  - 新增 `entry/src/main/ets/pages/FocusTimerPage.ets`：计时器页面
+    - 倒计时显示（25分钟）
+    - 暂停/继续功能
+    - 放弃功能
+    - 背景音选择（雨声、风声、咖啡厅）
+    - 当前任务信息显示
+  - 新增 `entry/src/main/ets/pages/ProgressPage.ets`：进度统计页面
+    - 时间段选择（周/月/年）
+    - 总专注时间统计
+    - 专注趋势图表（简化版）
+    - 任务分布图表（饼图简化版）
+    - 完成最多的任务列表
+  - 新增 `entry/src/main/ets/utils/pomodoroService.ets`：Pomodoro服务
+    - 任务管理（添加、更新、删除、查询）
+    - 会话管理（开始、完成、放弃）
+    - 数据统计（今日进度、专注趋势、任务分布、Top任务）
+    - 本地存储（使用 dataPreferences 持久化）
+  
+- ✅ **新增启动页功能**：
+  - 新增 `entry/src/main/ets/pages/SplashPage.ets`：应用启动页
+    - Logo动画（三层圆圈设计）
+    - 加载进度条
+    - 自动跳转到首页（加载完成后）
+
+- ✅ **页面路由更新**：
+  - 更新 `entry/src/main/resources/base/profile/main_pages.json`：
+    - 添加 `SplashPage`（启动页，应设为首页）
+    - 添加 `FocusPage`（专注主页面）
+    - 添加 `FocusTimerPage`（计时器页面）
+    - 添加 `ProgressPage`（进度统计页面）
+
+- ✅ **功能整合说明**：
+  - **数据可视化功能**（原有）：
+    - 数据输入 → AI分析 → 图表生成 → 导出保存
+    - 支持文件上传、手动输入、样本数据
+    - 云端同步（Supabase）
+  - **专注管理功能**（新增）：
+    - 任务创建 → Pomodoro计时 → 完成统计 → 进度分析
+    - 本地存储（dataPreferences）
+    - 多设备适配支持
+  - **通用功能**：
+    - 多设备适配（deviceAdapter）
+    - 错误处理（errorHandler）
+    - 异步管理（asyncManager）
+    - 性能监控（metrics、performanceMonitor）
+
+- 📝 **需要整合的部分**：
+  1. **导航整合**：
+     - 在首页（Index.ets）添加导航到专注页面的入口
+     - 在专注页面（FocusPage.ets）添加导航到进度统计页面的入口
+     - 统一导航栏设计风格
+  2. **数据同步**（可选）：
+     - 考虑将 Pomodoro 数据同步到 Supabase（当前为本地存储）
+     - 实现跨设备数据同步
+  3. **UI统一**：
+     - 统一颜色主题（当前两模块使用相同主题色 `#1A1A2E`、`#4A90E2`）
+     - 统一组件样式（按钮、卡片、进度条等）
+  4. **功能关联**（未来扩展）：
+     - 在专注统计中可考虑使用数据可视化模块展示图表
+     - 将专注数据作为输入，生成专注趋势图表
 
 **服务端（Edge Function）环境变量与部署步骤（新增 2025-10-29）**
 

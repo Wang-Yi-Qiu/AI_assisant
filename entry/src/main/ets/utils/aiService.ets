@@ -6,14 +6,14 @@
 import { saveChart, getSupabaseUrl, getSupabaseAnonKey } from './supabaseClient';
 import { startTimer, endTimer, newRequestId, LogPayload } from './metrics';
 import { httpClient, handleHttpError, RequestManager } from './httpClient';
-import { ErrorHandler, AppError, ErrorCode } from './errorHandler';
+import { ErrorHandler, AppError, ErrorCode, ErrorDetails } from './errorHandler';
 import { isChartConfig, isValidUserData, validateAndCleanString } from './typeGuard';
 
 // 自定义取消令牌，替代AbortSignal
 export interface CancellationToken {
   cancelled: boolean;
   cancel(): void;
-  onCancel(callback: () => void): void;
+  onCancel?(callback: () => void): void;
 }
 
 // 自定义取消异常，替代DOMException
@@ -64,16 +64,25 @@ export interface EChartsFormatterParams {
   dataIndex?: number;
 }
 
+// ECharts文本样式接口
+interface EChartsTextStyle {
+  color?: string;
+  fontSize?: number;
+  fontWeight?: 'normal' | 'bold' | 'bolder' | 'lighter';
+}
+
 export interface EChartsTitle {
   text?: string;
   subtext?: string;
   left?: string | number;
   top?: string | number;
-  textStyle?: {
-    color?: string;
-    fontSize?: number;
-    fontWeight?: 'normal' | 'bold' | 'bolder' | 'lighter';
-  };
+  textStyle?: EChartsTextStyle;
+}
+
+// ECharts轴文本样式接口
+interface EChartsAxisTextStyle {
+  color?: string;
+  fontSize?: number;
 }
 
 export interface EChartsAxis {
@@ -81,29 +90,32 @@ export interface EChartsAxis {
   data?: string[] | number[];
   name?: string;
   nameLocation?: 'start' | 'middle' | 'end';
-  nameTextStyle?: {
-    color?: string;
-    fontSize?: number;
-  };
+  nameTextStyle?: EChartsAxisTextStyle;
+}
+
+// ECharts系列项样式接口
+interface EChartsItemStyle {
+  color?: string;
+  borderWidth?: number;
+  borderColor?: string;
+}
+
+// ECharts标签接口
+interface EChartsLabel {
+  show?: boolean;
+  position?: 'top' | 'left' | 'right' | 'bottom' | 'inside' | 'outside';
+  formatter?: string | ((params: EChartsFormatterParams) => string);
 }
 
 export interface EChartsSeriesItem {
   type: string;
   name?: string;
-  data?: number[] | EChartsDataPoint[] | unknown[];
+  data?: number[] | EChartsDataPoint[] | (number | string | object)[];
   xAxisIndex?: number;
   yAxisIndex?: number;
   color?: string | string[];
-  itemStyle?: {
-    color?: string;
-    borderWidth?: number;
-    borderColor?: string;
-  };
-  label?: {
-    show?: boolean;
-    position?: 'top' | 'left' | 'right' | 'bottom' | 'inside' | 'outside';
-    formatter?: string | ((params: EChartsFormatterParams) => string);
-  };
+  itemStyle?: EChartsItemStyle;
+  label?: EChartsLabel;
 }
 
 export interface EChartsLegend {
@@ -121,14 +133,20 @@ export interface EChartsGrid {
   containLabel?: boolean;
 }
 
+// ECharts工具提示轴指针接口
+interface EChartsTooltipAxisPointer {
+  type?: 'line' | 'shadow' | 'cross';
+}
+
+// ECharts工具提示接口
+interface EChartsTooltip {
+  trigger?: 'item' | 'axis';
+  axisPointer?: EChartsTooltipAxisPointer;
+}
+
 export interface ChartConfig {
   title?: EChartsTitle;
-  tooltip?: {
-    trigger?: 'item' | 'axis';
-    axisPointer?: {
-      type?: 'line' | 'shadow' | 'cross';
-    };
-  };
+  tooltip?: EChartsTooltip;
   legend?: EChartsLegend;
   grid?: EChartsGrid;
   xAxis?: EChartsAxis | EChartsAxis[];
@@ -163,11 +181,13 @@ let lastGeneratedConfig: ChartConfig | null = null;
 export async function generateChart(userData: UserData, token?: CancellationToken): Promise<ChartConfig> {
   // 1. 输入验证
   if (!isValidUserData(userData)) {
+    // ArkTS不支持结构类型，需要明确转换
+    const errorDetails: ErrorDetails = { originalError: userData as Error | object | string | null | undefined };
     throw new AppError(
       ErrorCode.INVALID_INPUT,
       'Invalid user data provided',
       '输入数据格式无效，请检查数据内容',
-      userData
+      errorDetails
     );
   }
 
@@ -194,11 +214,20 @@ export async function generateChart(userData: UserData, token?: CancellationToke
 
     // 设置取消检查
     let cancelled = false;
-    if (token) {
+    if (token && token.onCancel) {
       token.onCancel(() => {
         cancelled = true;
         requestManager.cleanup();
       });
+    } else if (token) {
+      // 如果没有 onCancel 方法，使用轮询检查
+      const checkInterval = setInterval(() => {
+        if (token.cancelled) {
+          cancelled = true;
+          requestManager.cleanup();
+          clearInterval(checkInterval);
+        }
+      }, 100);
     }
 
     const response = await httpClient.supabasePost('/functions/v1/generate_chart_qwen', JSON.stringify(cleanedData));
@@ -246,17 +275,21 @@ export async function generateChart(userData: UserData, token?: CancellationToke
       };
       endTimer(timer, errorPayload);
 
+      // ArkTS不支持结构类型，需要明确转换
+      const errorDetails: ErrorDetails = { 
+        originalError: errorData as Error | object | string | null | undefined 
+      };
       const appError = new AppError(
         errorCode,
         `API error: ${errorData.code}`,
         'API调用失败，请稍后重试',
-        errorData
+        errorDetails
       );
       ErrorHandler.reportError(appError);
       throw appError;
     }
 
-    const rawData = await httpClient.parseJsonResponse<unknown>(response);
+    const rawData = await httpClient.parseJsonResponse<ChartConfig>(response);
 
     // 使用类型守卫验证返回的配置
     if (!isChartConfig(rawData)) {
@@ -264,7 +297,7 @@ export async function generateChart(userData: UserData, token?: CancellationToke
         ErrorCode.INVALID_MODEL_OUTPUT,
         'Invalid chart configuration returned',
         'AI生成的图表配置无效，请重试',
-        rawData
+        { originalError: rawData }
       );
     }
 

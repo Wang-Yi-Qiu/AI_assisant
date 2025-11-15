@@ -354,6 +354,7 @@ class AuthService {
         'Authorization': this.sessionToken ? `Bearer ${this.sessionToken}` : `Bearer ${anonKey}`,
       };
 
+      // httpRequest.request 可能抛出异常，已在外部try-catch中处理
       const response = await httpRequest.request(url, {
         method: options.method as http.RequestMethod || http.RequestMethod.GET,
         header: headers,

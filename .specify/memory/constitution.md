@@ -1,71 +1,139 @@
 <!--
-Sync Impact Report
-- Version change: (new) → 1.0.0
-- Modified principles: N/A (initial adoption)
-- Added sections: Core Principles; 发布与内容审查要求; 开发工作流与评审流程; Governance
-- Removed sections: None
-- Templates requiring updates:
-  - .specify/templates/plan-template.md ✅ 无需修改（“Constitution Check”门禁与本宪章对齐）
-  - .specify/templates/spec-template.md ✅ 无需修改（用户故事/验收对齐宪章的测试与合约要求）
-  - .specify/templates/tasks-template.md ✅ 无需修改（分阶段与独立可测规则保持一致）
-  - .specify/templates/commands/* ⚠ 不存在该目录（无需处理）
-- Follow-up TODOs: 无
+Sync Impact Report:
+Version: 0.0.0 → 1.0.0
+- Initial constitution creation
+- Principles derived from pr.md and spec documents
+- Templates: ⚠ pending (templates directory not yet created)
+- Follow-up: None
 -->
 
-# 鸿蒙 AI 智能数据可视化助手（Supabase云端支持版） Constitution
+# Project Constitution
 
-## Core Principles
+**Project**: 鸿蒙 AI 智能数据可视化助手（Supabase云端支持版）  
+**Version**: 1.0.0  
+**Ratified**: 2025-01-28  
+**Last Amended**: 2025-01-28
 
-### 规范先行与契约驱动开发（spec-kit 集成，NON-NEGOTIABLE）
-必须以规范为源：OpenAPI 定义接口，JSON Schema/Zod 定义数据契约，Edge Function 入/出参均进行运行时校验；在 CI 中强制执行 `spec-kit validate` 与合约测试，规范未通过禁止合入与发版。
+## Purpose
 
-### 云端优先与最小后端（Supabase 为核心能力）
-统一依赖 Supabase 提供 Auth、Storage、Database 与 Edge Functions；前端（HarmonyOS/ArkTS）保持“轻”并通过 HTTPS 调用边缘函数；不自建冗余后端，除非出现合规或性能红线并经评审备案。
+This constitution establishes the non-negotiable principles and governance rules for the HarmonyOS AI Data Visualization Assistant project. All development decisions, code reviews, and architectural choices MUST align with these principles.
 
-### 安全与合规为强制要求（密钥、RLS、最小化数据）
-密钥零硬编码，分环境注入；启用行级安全（RLS）和 Storage 访问策略；输入输出均按 Schema 校验并限制体积；记录审计日志并实施速率限制与滥用防护；遵循最小必要数据传输与脱敏原则。
+## Principles
 
-### 可观测性与质量门禁（SLO/错误码/合约与单测）
-前后端统一结构化日志、指标与错误码；关键 SLO：成功率≥99%，P95≤3s（生成路径）；变更必须通过合约测试与必要的单元/集成测试；出现违例需在 PR 内给出豁免理由与回滚预案。
+### Principle 1: 规范先行 (Specification First)
 
-### 性能优化与离线/降级策略（用户体验优先）
-大文件分片与断点续传、WebView 预加载与本地化资源、图表与缩略图缓存；请求设置超时与快速降级（回退模板/命中缓存/区域模型切换）；必要时提供离线浏览最近记录的能力。
+**Rule**: All API contracts, data schemas, and interface definitions MUST be defined in OpenAPI and JSON Schema formats before implementation begins. These specifications MUST pass validation through `spec-kit validate` as a gate before code merge.
 
-### 模型策略与区域合规（默认通义千问 Qwen）
-默认采用通义千问（Qwen）并通过 OpenAI 兼容接口调用，`response_format: json_object`、`temperature: 0`；
-通过环境变量配置 `DASHSCOPE_API_KEY`、`DASHSCOPE_API_BASE`、`QWEN_MODEL`，密钥不得在前端暴露；
-设置严格超时（建议 3s）与统一错误码（如 `QWEN_ERROR`），失败时执行校验与安全降级（回退模板/缓存命中/区域切换）；
-遵循数据最小化与本地合规要求，禁止上传超出最小必要的数据；敏感字段需脱敏或汇总。
+**Rationale**: Specification-first development ensures consistency between frontend, backend, and Edge Functions, reduces integration errors, and enables automated contract testing. It provides a single source of truth for all stakeholders.
 
-## 发布与内容审查要求（HarmonyOS 官网发布约束）
+**Enforcement**: 
+- OpenAPI specifications MUST exist in `specs/*/contracts/openapi.yaml`
+- JSON Schema files MUST exist in `specs/*/contracts/schemas/`
+- CI/CD pipeline MUST run `spec-kit validate` and block merges on failure
+- Edge Function implementations MUST validate inputs/outputs against schemas using Ajv
 
-发布物不得泄露任何敏感信息（密钥、内部域名、调试端点）；`pr.md` 与规范文档保持同步，包含功能、架构、安全与隐私说明；应用资源（图标/图片/字体/第三方库）具备可追溯许可；中文文案一致、没有占位/英文残留；提供可复现说明（环境变量清单、示例配置、最小演示数据）；通过内部审查清单（功能可用性、安全合规、性能与稳定性、可观测性）后方可提交官网发布。
+### Principle 2: 云端优先 (Cloud-First)
 
-## 开发工作流与评审流程（Quality Gates）
+**Rule**: The application MUST exclusively use Supabase capabilities (Auth, Storage, Database, Edge Functions) for backend services. No self-hosted backend services are permitted without explicit approval.
 
-每个 PR 必须通过以下门禁：
-- 规范校验：`spec-kit validate` 与合约测试通过，接口/Schema 变更标注版本影响；
-- 安全检查：密钥扫描、RLS/Storage 策略审阅、输入输出 Schema 校验；
-- 质量检查：编译与静态检查、关键路径测试（登录→上传→生成→渲染→导出→保存）；
-- 版本管理：依据语义化版本确定 bump，并在变更日志中记录；
-- 发布核对：`pr.md`、README 与环境变量示例更新完备；必要时附回滚与降级方案。
+**Rationale**: Supabase provides a complete, secure, and scalable backend-as-a-service platform that eliminates the need for custom server infrastructure, reduces operational overhead, and ensures consistent security practices.
+
+**Enforcement**:
+- All data storage MUST use Supabase Database or Storage
+- All authentication MUST use Supabase Auth
+- All serverless functions MUST be implemented as Supabase Edge Functions
+- Any exception requires documented approval and justification
+
+### Principle 3: 安全合规 (Security & Compliance)
+
+**Rule**: 
+- Secrets and API keys MUST NEVER be hardcoded in source code
+- Row-Level Security (RLS) policies MUST be enabled on all database tables
+- All user inputs and AI model outputs MUST be validated against JSON Schema
+- Storage bucket policies MUST restrict access to file owners only
+
+**Rationale**: Security is non-negotiable. Hardcoded secrets create vulnerabilities. RLS ensures data isolation. Schema validation prevents injection attacks and malformed data. Proper access controls protect user privacy.
+
+**Enforcement**:
+- Code reviews MUST reject any hardcoded secrets
+- Database migrations MUST include RLS policy definitions
+- Edge Functions MUST validate inputs using Ajv before processing
+- Storage buckets MUST have owner-only read/write policies
+- Frontend MUST only hold public anon keys; service keys remain server-side only
+
+### Principle 4: 可观测性与质量 (Observability & Quality)
+
+**Rule**: 
+- All logs MUST be structured with requestId, user ID, and operation context
+- Error handling MUST use unified error codes and user-friendly messages
+- Critical paths MUST have minimum test coverage (unit tests for utilities, contract tests for Edge Functions)
+- Performance metrics MUST be collected (P95 latency, success rate, token usage)
+
+**Rationale**: Observability enables rapid debugging and performance optimization. Unified error handling improves user experience. Test coverage prevents regressions. Metrics guide optimization efforts.
+
+**Enforcement**:
+- Logging MUST include structured fields (requestId, duration, status)
+- ErrorHandler utility MUST be used for all error handling
+- Edge Functions MUST have contract tests validating OpenAPI/Schema compliance
+- Performance monitoring MUST track key SLOs (P95 ≤ 3s for chart generation)
+
+### Principle 5: 性能与降级 (Performance & Degradation)
+
+**Rule**: 
+- All AI service calls MUST have strict timeout controls (default 3s for Edge Functions)
+- Fallback templates MUST be provided when AI generation fails or times out
+- Large files MUST be processed in chunks with size limits (10MB default)
+- Chart rendering MUST support caching of recent configurations
+
+**Rationale**: Timeouts prevent indefinite hangs. Fallback templates ensure the application remains functional even when AI services are unavailable. Chunked processing prevents memory issues. Caching improves user experience.
+
+**Enforcement**:
+- Edge Functions MUST implement AbortController with timeout
+- Chart generation MUST have fallback ECharts configuration templates
+- File uploads MUST validate size before processing
+- Recent chart configurations SHOULD be cached locally
+
+### Principle 6: 多设备适配 (Multi-Device Adaptation)
+
+**Rule**: The application MUST support multiple device types (phone, tablet, 2in1, TV, wearable, car, smartVision) with responsive layouts, appropriate input methods, and graceful degradation for unsupported features.
+
+**Rationale**: HarmonyOS targets diverse device categories. Responsive design ensures usability across screen sizes. Graceful degradation maintains core functionality even when device-specific features are unavailable.
+
+**Enforcement**:
+- DeviceAdapter utility MUST detect device type and provide layout configurations
+- Layouts MUST adapt to screen size, orientation, and window changes
+- File upload MUST be hidden/disabled on devices without file picker support
+- Export capabilities MUST degrade appropriately (JSON fallback for PNG/PDF on limited devices)
+- Focus navigation MUST be supported for TV/car devices
+- Wearable interfaces MUST minimize interaction steps (≤2 steps for key tasks)
 
 ## Governance
 
-本宪章优先级高于其他实践文档；任何治理变更需在 PR 中说明动机、影响评估、迁移/回滚方案并经审批。
+### Amendment Procedure
 
-版本策略采用语义化版本：
-- MAJOR：治理/原则的破坏性变更或移除；
-- MINOR：新增原则或显著扩展指导；
-- PATCH：措辞澄清与非语义优化。
+1. Proposed amendments MUST be documented in a pull request with rationale
+2. Amendments affecting principles require review and approval from project maintainers
+3. Version MUST be incremented according to semantic versioning:
+   - **MAJOR**: Backward incompatible changes to principles or governance
+   - **MINOR**: Addition of new principles or significant expansion of existing ones
+   - **PATCH**: Clarifications, wording improvements, typo fixes
+4. After approval, the constitution MUST be updated and all dependent templates/specs reviewed for consistency
 
-合规审查节奏：
-- 每次发版前执行合规与门禁复核；
-- 每季度进行一次原则适配性回顾，必要时提出修订提案。
+### Compliance Review
 
-例外与豁免：
-- 需在 PR 中明确范围与时限，提供替代控制与回滚路径，并由负责人批准备案。
+- All pull requests MUST be checked against constitution principles
+- Code reviews MUST explicitly verify compliance with relevant principles
+- CI/CD pipeline SHOULD include automated checks where possible
+- Quarterly review of constitution effectiveness and relevance
 
-负责人：规范与合规由项目所有者共同维护；日常执行由 CI 门禁与评审共同保障。
+### Version History
 
-**Version**: 1.1.0 | **Ratified**: 2025-10-29 | **Last Amended**: 2025-10-29
+- **1.0.0** (2025-01-28): Initial constitution established based on project requirements and specifications
+
+## Related Documents
+
+- Project Plan: `pr.md`
+- Feature Specifications: `specs/001-ai-chart-mvp/spec.md`
+- Implementation Plan: `specs/001-ai-chart-mvp/plan.md`
+- API Contracts: `specs/001-ai-chart-mvp/contracts/openapi.yaml`
+- Data Schemas: `specs/001-ai-chart-mvp/contracts/schemas/`

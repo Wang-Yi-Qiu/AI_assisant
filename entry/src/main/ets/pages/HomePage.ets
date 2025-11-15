@@ -51,8 +51,12 @@ export async function onGenerateFromFile(fileContent: string, fileName: string):
     throw new Error('文件内容为空');
   }
 
-  const data = parseFileContent(fileContent, fileName);
-  return await generateChart(data);
+  try {
+    const data = parseFileContent(fileContent, fileName);
+    return await generateChart(data);
+  } catch (error) {
+    throw new Error(`文件解析失败: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 /**
@@ -73,22 +77,102 @@ export function parseUserInput(text: string): UserData {
   return parseCSV(text);
 }
 
+// 解析CSV行的辅助函数（ArkTS不支持嵌套函数，需要提取到外部）
+function parseCSVLine(line: string): string[] {
+    const fields: string[] = [];
+    let currentField = '';
+    let inQuotes = false;
+    let i = 0;
+
+    while (i < line.length) {
+      const char = line[i];
+      const nextChar = i + 1 < line.length ? line[i + 1] : '';
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          // 转义的引号
+          currentField += '"';
+          i += 2;
+        } else if (inQuotes && nextChar === ',') {
+          // 引号结束，后面是逗号
+          inQuotes = false;
+          i += 2;
+        } else if (!inQuotes && currentField.length === 0) {
+          // 引号开始
+          inQuotes = true;
+          i++;
+        } else {
+          // 普通引号字符（在引号内）
+          currentField += char;
+          i++;
+        }
+      } else if (char === ',' && !inQuotes) {
+        // 字段分隔符
+        fields.push(currentField.trim());
+        currentField = '';
+        i++;
+      } else {
+        currentField += char;
+        i++;
+      }
+    }
+
+    // 添加最后一个字段
+    fields.push(currentField.trim());
+
+  return fields;
+}
+
 /**
- * 解析CSV格式数据（简单实现）
+ * 解析CSV格式数据（支持引号、转义等复杂情况）
+ * 实现RFC 4180标准的CSV解析
  */
 export function parseCSV(csvText: string): CSVData | string {
-  // TODO: 使用CSV解析库（如papaparse）进行完整解析
-  const lines = csvText.split('\n').filter(line => line.trim());
+  const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
   if (lines.length === 0) return csvText;
 
-  const headers = lines[0].split(',').map(h => h.trim());
-  const rows = lines.slice(1).map(line => {
-    const values = line.split(',').map(v => v.trim());
-    return { values }; // 使用CSVDataRow接口
-  });
+  try {
+    // 解析表头
+    const headers = parseCSVLine(lines[0]).map(h => {
+      // 移除引号（如果存在）
+      return h.replace(/^"|"$/g, '');
+    });
 
-  const result: CSVData = { headers, data: rows };
-  return result;
+    if (headers.length === 0) {
+      return csvText;
+    }
+
+    // 解析数据行
+    const rows = lines.slice(1).map(line => {
+      const values = parseCSVLine(line).map(v => {
+        // 移除引号（如果存在）
+        return v.replace(/^"|"$/g, '');
+      });
+      // 确保每行的列数与表头一致
+      while (values.length < headers.length) {
+        values.push('');
+      }
+      // 创建CSVDataRow对象（ArkTS不支持对象字面量类型，需要明确类型）
+      const row: CSVDataRow = { values: values.slice(0, headers.length) };
+      return row;
+    });
+
+    // 过滤掉空行
+    const validRows = rows.filter(row => 
+      row.values.some(v => v.trim().length > 0)
+    );
+
+    if (validRows.length === 0) {
+      return csvText;
+    }
+
+    const result: CSVData = { headers, data: validRows };
+    return result;
+  } catch (error) {
+    console.error('CSV解析失败:', error);
+    // 解析失败时返回原始文本
+    return csvText;
+  }
 }
 
 /**
