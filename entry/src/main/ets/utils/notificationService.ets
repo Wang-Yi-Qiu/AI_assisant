@@ -1,6 +1,8 @@
 import notification from '@ohos.notification';
 import vibrator from '@ohos.vibrator';
 import { BusinessError } from '@kit.BasicServicesKit';
+import abilityAccessCtrl from '@ohos.abilityAccessCtrl';
+import common from '@ohos.app.ability.common';
 
 /**
  * 通知提醒服务
@@ -8,6 +10,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
  */
 export class NotificationService {
   private static instance: NotificationService | null = null;
+  private context: common.UIAbilityContext | null = null;
 
   private constructor() {}
 
@@ -22,6 +25,13 @@ export class NotificationService {
   }
 
   /**
+   * 设置应用上下文
+   */
+  setContext(context: common.UIAbilityContext): void {
+    this.context = context;
+  }
+
+  /**
    * 播放番茄钟完成提醒
    */
   async playPomodoroCompleteNotification(type: 'focus' | 'break'): Promise<void> {
@@ -29,17 +39,33 @@ export class NotificationService {
     const content = type === 'focus' ? '恭喜完成一个番茄钟，休息一下吧' : '休息结束，准备开始新的专注';
 
     try {
-      // 发送系统通知
-      await this.sendNotification(title, content);
+      // 检查通知权限
+      const hasNotificationPermission = await this.checkNotificationPermission();
+      if (hasNotificationPermission) {
+        await this.sendNotification(title, content);
+      } else {
+        console.warn('NotificationService: No notification permission, trying to request');
+        const granted = await this.requestNotificationPermission();
+        if (granted) {
+          await this.sendNotification(title, content);
+        }
+      }
 
       // 播放声音（这里简化实现，实际可能需要音频播放）
       console.info(`NotificationService: Playing sound for ${type} complete`);
+      await this.playSound();
 
-      // 触发震动
-      await this.vibrate();
+      // 检查震动权限并触发震动
+      const hasVibrationPermission = await this.checkVibratorPermission();
+      if (hasVibrationPermission) {
+        await this.vibrate();
+      } else {
+        console.warn('NotificationService: No vibration permission');
+      }
 
     } catch (error) {
       console.error('NotificationService: Failed to play notification', error);
+      // 可以通过回调通知UI层显示错误提示
     }
   }
 
@@ -108,10 +134,24 @@ export class NotificationService {
    */
   async checkNotificationPermission(): Promise<boolean> {
     try {
-      // 这里需要检查通知权限
-      // 实际实现可能需要使用 @ohos.abilityAccessCtrl
-      console.info('NotificationService: Checking notification permission');
-      return true; // 简化实现，默认返回true
+      if (!this.context) {
+        console.warn('NotificationService: Context not set, cannot check notification permission');
+        return false;
+      }
+
+      const atManager = abilityAccessCtrl.createAtManager();
+      const bundleInfo = this.context.applicationInfo;
+
+      if (!bundleInfo || !bundleInfo.accessTokenId) {
+        console.warn('NotificationService: Cannot get accessTokenId');
+        return false;
+      }
+
+      const status = await atManager.checkAccessToken(bundleInfo.accessTokenId, 'ohos.permission.NOTIFICATION_CONTROLLER');
+      const hasPermission = status === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
+
+      console.info(`NotificationService: Notification permission status: ${hasPermission}`);
+      return hasPermission;
     } catch (error) {
       console.error('NotificationService: Failed to check notification permission', error);
       return false;
@@ -123,9 +163,24 @@ export class NotificationService {
    */
   async requestNotificationPermission(): Promise<boolean> {
     try {
-      // 这里需要请求通知权限
-      console.info('NotificationService: Requesting notification permission');
-      return true; // 简化实现，默认返回true
+      if (!this.context) {
+        console.warn('NotificationService: Context not set, cannot request notification permission');
+        return false;
+      }
+
+      const atManager = abilityAccessCtrl.createAtManager();
+      const bundleInfo = this.context.applicationInfo;
+
+      if (!bundleInfo || !bundleInfo.accessTokenId) {
+        console.warn('NotificationService: Cannot get accessTokenId for permission request');
+        return false;
+      }
+
+      const result = await atManager.requestPermissionsFromUser(this.context, ['ohos.permission.NOTIFICATION_CONTROLLER']);
+      const granted = result.authResults[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
+
+      console.info(`NotificationService: Notification permission request result: ${granted}`);
+      return granted;
     } catch (error) {
       console.error('NotificationService: Failed to request notification permission', error);
       return false;
@@ -137,8 +192,24 @@ export class NotificationService {
    */
   async checkVibratorPermission(): Promise<boolean> {
     try {
-      console.info('NotificationService: Checking vibrator permission');
-      return true; // 简化实现，默认返回true
+      if (!this.context) {
+        console.warn('NotificationService: Context not set, cannot check vibrator permission');
+        return false;
+      }
+
+      const atManager = abilityAccessCtrl.createAtManager();
+      const bundleInfo = this.context.applicationInfo;
+
+      if (!bundleInfo || !bundleInfo.accessTokenId) {
+        console.warn('NotificationService: Cannot get accessTokenId for vibrator permission');
+        return false;
+      }
+
+      const status = await atManager.checkAccessToken(bundleInfo.accessTokenId, 'ohos.permission.APPROXIMATELY_LOCATION');
+      const hasPermission = status === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
+
+      console.info(`NotificationService: Vibrator permission status: ${hasPermission}`);
+      return hasPermission;
     } catch (error) {
       console.error('NotificationService: Failed to check vibrator permission', error);
       return false;

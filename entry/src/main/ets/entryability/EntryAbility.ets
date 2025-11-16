@@ -3,6 +3,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { setAppConfig } from '../utils/config';
 import { setGlobalContext } from '../utils/sampleDataManager';
+import { AppLifecycleService } from '../utils/appLifecycleService';
 import util from '@ohos.util';
 
 const DOMAIN = 0x0000;
@@ -15,6 +16,13 @@ interface SupabaseConfig {
 }
 
 export default class EntryAbility extends UIAbility {
+  private lifecycleService: AppLifecycleService;
+
+  constructor() {
+    super();
+    this.lifecycleService = AppLifecycleService.getInstance();
+  }
+
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     try {
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
@@ -56,10 +64,26 @@ export default class EntryAbility extends UIAbility {
       // 原则：配置缺失不崩溃，仅记录
       hilog.warn(DOMAIN, 'testTag', 'No supabase.json or parse error. Using defaults. Cause: %{public}s', JSON.stringify(e));
     }
+
+    // 初始化应用生命周期管理
+    try {
+      this.lifecycleService.initialize(this.context as common.UIAbilityContext);
+      hilog.info(DOMAIN, 'testTag', 'App lifecycle service initialized');
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to initialize lifecycle service. Cause: %{public}s', JSON.stringify(err));
+    }
   }
 
   onDestroy(): void {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
+
+    // 处理应用终止
+    try {
+      this.lifecycleService.onAppTerminate();
+      hilog.info(DOMAIN, 'testTag', 'App lifecycle service cleanup completed');
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to cleanup lifecycle service. Cause: %{public}s', JSON.stringify(err));
+    }
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
@@ -83,10 +107,24 @@ export default class EntryAbility extends UIAbility {
   onForeground(): void {
     // Ability has brought to foreground
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
+
+    // 手动调用生命周期服务的前台处理
+    try {
+      this.lifecycleService.onAppForeground();
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to handle foreground transition: %{public}s', JSON.stringify(err));
+    }
   }
 
   onBackground(): void {
     // Ability has back to background
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');
+
+    // 手动调用生命周期服务的后台处理
+    try {
+      this.lifecycleService.onAppBackground();
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to handle background transition: %{public}s', JSON.stringify(err));
+    }
   }
 }

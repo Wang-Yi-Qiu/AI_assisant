@@ -32,7 +32,7 @@ struct FocusProgressPage {
     const context = getContext(this) as common.UIAbilityContext;
     getStorageInstance().setContext(context);
 
-    // 获取路由参数
+    // 获取路由参数（简化版本）
     const params = router.getParams() as RouterParams;
 
     this.initializeTasks(params);
@@ -40,7 +40,22 @@ struct FocusProgressPage {
   }
 
   aboutToDisappear() {
-    this.pomodoroTimer.destroy();
+    try {
+      // 确保定时器被正确清理
+      if (this.pomodoroTimer.isTimerActive()) {
+        console.warn('FocusProgressPage: Timer is still active, cleaning up');
+      }
+      this.pomodoroTimer.destroy();
+      console.info('FocusProgressPage: About to disappear, resources cleaned up');
+    } catch (error) {
+      console.error('FocusProgressPage: Error during cleanup', error);
+      // 即使出错也要强制清理
+      try {
+        this.pomodoroTimer.forceCleanup();
+      } catch (cleanupError) {
+        console.error('FocusProgressPage: Force cleanup failed', cleanupError);
+      }
+    }
   }
 
   private async initializeTasks(params?: RouterParams): Promise<void> {
@@ -48,41 +63,45 @@ struct FocusProgressPage {
       await this.taskManager.initialize();
 
       // 优先使用从主页面传递过来的任务
-      if (params?.selectedTaskText && params?.selectedTaskId) {
+      if (params && params.selectedTaskId && params.selectedTaskText) {
         // 验证传递的任务ID是否仍然有效（未完成）
         const selectedTask = this.taskManager.getTasks().find(task =>
           task.id === params.selectedTaskId && !task.completed
         );
 
-        if (selectedTask) {
+        if (selectedTask && selectedTask.text === params.selectedTaskText) {
           this.currentTask = params.selectedTaskText;
           this.pomodoroTimer.setCurrentTask(params.selectedTaskText);
+          console.info(`FocusProgressPage: Using passed task: ${params.selectedTaskText}`);
         } else {
-          // 如果传递的任务无效，使用第一个未完成的任务
-          const incompleteTasks = this.taskManager.getIncompleteTasks();
-          if (incompleteTasks.length > 0) {
-            this.currentTask = incompleteTasks[0].text;
-            this.pomodoroTimer.setCurrentTask(incompleteTasks[0].text);
-          } else {
-            this.currentTask = "暂无任务，请添加新任务";
-            this.pomodoroTimer.setCurrentTask("暂无任务，请添加新任务");
-          }
+          console.warn('FocusProgressPage: Passed task is invalid or completed, using fallback');
+          this.setFallbackTask();
         }
       } else {
-        // 没有传递参数时，使用第一个未完成的任务
-        const incompleteTasks = this.taskManager.getIncompleteTasks();
-        if (incompleteTasks.length > 0) {
-          this.currentTask = incompleteTasks[0].text;
-          this.pomodoroTimer.setCurrentTask(incompleteTasks[0].text);
-        } else {
-          this.currentTask = "暂无任务，请添加新任务";
-          this.pomodoroTimer.setCurrentTask("暂无任务，请添加新任务");
-        }
+        // 没有传递参数或参数无效时，使用第一个未完成的任务
+        console.info('FocusProgressPage: No valid parameters, using first incomplete task');
+        this.setFallbackTask();
       }
     } catch (error) {
       console.error('FocusProgressPage: Failed to initialize tasks', error);
       this.currentTask = "准备开始专注";
       this.pomodoroTimer.setCurrentTask("准备开始专注");
+    }
+  }
+
+  /**
+   * 设置备用任务
+   */
+  private setFallbackTask(): void {
+    const incompleteTasks = this.taskManager.getIncompleteTasks();
+    if (incompleteTasks.length > 0) {
+      this.currentTask = incompleteTasks[0].text;
+      this.pomodoroTimer.setCurrentTask(incompleteTasks[0].text);
+      console.info(`FocusProgressPage: Using fallback task: ${incompleteTasks[0].text}`);
+    } else {
+      this.currentTask = "暂无任务，请添加新任务";
+      this.pomodoroTimer.setCurrentTask("暂无任务，请添加新任务");
+      console.warn('FocusProgressPage: No tasks available');
     }
   }
 
@@ -150,8 +169,15 @@ struct FocusProgressPage {
 
   // 放弃
   abandonFocus() {
-    this.pomodoroTimer.stop();
-    router.pushUrl({ url: 'pages/Index' });
+    try {
+      this.pomodoroTimer.stop();
+      // 使用replaceUrl回到主页，避免用户通过返回键回到专注页面
+      router.replaceUrl({ url: 'pages/Index' });
+    } catch (error) {
+      console.error('放弃专注时出错:', error);
+      // 即使出错也要确保用户能回到主页
+      router.replaceUrl({ url: 'pages/Index' });
+    }
   }
 
   // 显示跳过确认对话框

@@ -1,6 +1,7 @@
 import router from '@ohos.router';
 import { PomodoroTimerService } from '../utils/pomodoroTimerService';
 import { getStorageInstance } from '../utils/preferencesStorage';
+import { handleStorageError, showSuccess } from '../utils/errorService';
 import common from '@ohos.app.ability.common';
 
 @Entry
@@ -53,9 +54,9 @@ export struct SettingsPage {
         enableSound: this.enableSound,
         enableVibration: this.enableVibration
       });
-      console.info('设置已保存');
+      showSuccess('设置保存成功');
     } catch (error) {
-      console.error('保存设置失败:', error);
+      handleStorageError(error, '保存设置');
     }
   }
 
@@ -67,7 +68,8 @@ export struct SettingsPage {
           .fontSize(24)
           .fontColor(Color.White)
           .onClick(() => {
-            router.pushUrl({ url: 'pages/Index' });
+            // 使用back()而不是pushUrl来避免导航栈混乱
+            router.back();
           })
 
         Text('设置').fontSize(20).fontWeight(FontWeight.Bold).fontColor(Color.White).margin({ left: 20 })
@@ -230,7 +232,8 @@ export struct SettingsPage {
             .backgroundColor('#007DFF')
             .onClick(async () => {
               await this.saveSettings();
-              router.pushUrl({ url: 'pages/Index' });
+              // 保存成功后返回上一页
+              router.back();
             })
 
           // 底部间距，确保内容不会被底部导航栏遮挡

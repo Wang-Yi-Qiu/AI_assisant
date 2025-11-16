@@ -28,6 +28,7 @@ export struct HomePage {
 
     this.initializeTimer();
     this.initializeTasks();
+    this.setupPomodoroCallbacks();
   }
 
   private async initializeTasks(): Promise<void> {
@@ -77,6 +78,13 @@ export struct HomePage {
     this.pomodoroCompleted = stats.completedToday;
     this.timerValue = this.pomodoroTimer.getRemainingTime();
 
+    // 检查当前状态
+    this.currentTimerState = this.pomodoroTimer.getCurrentState();
+    this.isTimerRunning = this.pomodoroTimer.isRunning();
+    this.currentProgress = this.pomodoroTimer.getProgress();
+  }
+
+  private setupPomodoroCallbacks() {
     // 设置事件回调
     this.pomodoroTimer.setEventCallbacks({
       onTimerTick: (remainingTime: number, totalTime: number) => {
@@ -95,16 +103,26 @@ export struct HomePage {
         if (type === 'focus') {
           const stats = this.pomodoroTimer.getStats();
           this.pomodoroCompleted = stats.completedToday;
+
+          // 专注完成后，自动选择下一个未完成任务
+          this.autoSelectNextTask();
         }
         // 完成时重置运行状态
         this.isTimerRunning = false;
       }
     });
+  }
 
-    // 检查当前状态
-    this.currentTimerState = this.pomodoroTimer.getCurrentState();
-    this.isTimerRunning = this.pomodoroTimer.isRunning();
-    this.currentProgress = this.pomodoroTimer.getProgress();
+  // 专注完成后自动选择下一个任务
+  private autoSelectNextTask(): void {
+    const nextTask = this.getNextIncompleteTask(this.selectedTaskId);
+    if (nextTask) {
+      this.selectTask(nextTask.id);
+      console.info(`专注完成，自动切换到下一个任务: ${nextTask.text}`);
+    } else {
+      console.info('专注完成，但所有任务都已完成！');
+      this.selectedTaskId = -1;
+    }
   }
 
   // 添加任务
@@ -151,6 +169,25 @@ export struct HomePage {
       this.isTimerRunning = false;
     } else {
       if (this.currentTimerState === PomodoroState.IDLE) {
+        // 检查是否有选中的任务
+        const currentTask = this.getCurrentSelectedTask();
+        if (!currentTask) {
+          // 如果没有选中任务，选择第一个未完成的任务
+          const firstIncompleteTask = this.tasks.find(task => !task.completed);
+          if (firstIncompleteTask) {
+            this.selectTask(firstIncompleteTask.id);
+            // 显示任务选择提示
+            console.info(`自动选择任务: ${firstIncompleteTask.text}`);
+          }
+        }
+
+        // 设置当前任务到番茄钟服务
+        const selectedTaskText = this.getCurrentSelectedTask();
+        if (selectedTaskText && selectedTaskText !== '未选中任务') {
+          this.pomodoroTimer.setCurrentTask(selectedTaskText, this.selectedTaskId);
+          console.info(`开始专注任务: ${selectedTaskText}`);
+        }
+
         this.pomodoroTimer.startFocus();
       } else {
         this.pomodoroTimer.resume();
@@ -200,6 +237,29 @@ export struct HomePage {
       return selectedTask ? selectedTask.text : '未选中任务';
     }
     return '未选中任务';
+  }
+
+  // 获取按顺序的下一个未完成任务
+  getNextIncompleteTask(afterTaskId?: number): Task | null {
+    const incompleteTasks = this.tasks.filter(task => !task.completed);
+
+    if (incompleteTasks.length === 0) {
+      return null;
+    }
+
+    if (!afterTaskId) {
+      // 如果没有指定起始任务ID，返回第一个未完成任务
+      return incompleteTasks[0];
+    }
+
+    // 找到指定任务之后的第一个未完成任务
+    const afterIndex = incompleteTasks.findIndex(task => task.id === afterTaskId);
+    if (afterIndex !== -1 && afterIndex < incompleteTasks.length - 1) {
+      return incompleteTasks[afterIndex + 1];
+    }
+
+    // 如果没有找到或者已是最后一个，返回第一个未完成任务
+    return incompleteTasks[0];
   }
 
   // 选择任务
@@ -285,18 +345,35 @@ export struct HomePage {
           .fontSize(16)
           .backgroundColor('#007DFF')
           .onClick(() => {
+            // 检查是否有未完成的任务
+            const incompleteTasks = this.tasks.filter(task => !task.completed);
+            if (incompleteTasks.length === 0) {
+              console.info('没有未完成的任务，请先添加任务');
+              return;
+            }
+
+            // 如果没有选中任务，选择第一个未完成的任务
+            if (this.selectedTaskId === -1) {
+              const firstIncompleteTask = incompleteTasks[0];
+              this.selectTask(firstIncompleteTask.id);
+            }
+
             // 设置当前任务到番茄钟服务
             const currentTaskText = this.getCurrentSelectedTask();
-            this.pomodoroTimer.setCurrentTask(currentTaskText);
+            if (currentTaskText && currentTaskText !== '未选中任务') {
+              this.pomodoroTimer.setCurrentTask(currentTaskText, this.selectedTaskId);
+              console.info(`开始专注任务: ${currentTaskText} (ID: ${this.selectedTaskId})`);
 
-            // 通过参数传递选中的任务ID
-            router.pushUrl({
-              url: 'pages/FocusProgressPage',
-              params: {
-                selectedTaskId: this.selectedTaskId,
-                selectedTaskText: currentTaskText
-              }
-            });
+              // 通过参数传递选中的任务信息
+              router.pushUrl({
+                url: 'pages/FocusProgressPage',
+                params: {
+                  selectedTaskId: this.selectedTaskId,
+                  selectedTaskText: currentTaskText,
+                  allTasks: this.tasks.map(task => ({ id: task.id, text: task.text, completed: task.completed }))
+                }
+              });
+            }
           })
       }
       .width('80%')
@@ -362,7 +439,7 @@ export struct HomePage {
     .borderRadius(15)
     .margin({ bottom: 20 })
     .onClick(() => {
-      router.pushUrl({ url: 'pages/PomodoroStatsPage' });
+      router.pushUrl({ url: 'pages/PomodoroHistoryPage' });
     })
   }
 

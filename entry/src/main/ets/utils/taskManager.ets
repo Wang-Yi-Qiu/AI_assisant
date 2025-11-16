@@ -107,16 +107,22 @@ export class TaskManager {
    * 添加任务
    */
   async addTask(text: string): Promise<Task> {
+    // 简单验证
     if (!text || text.trim() === '') {
       throw new Error('Task text cannot be empty');
     }
 
+    if (text.trim().length > 200) {
+      throw new Error('Task text too long (max 200 characters)');
+    }
+
+    const cleanText = text.trim();
     const newId = this.tasks.length > 0 ? Math.max(...this.tasks.map(t => t.id)) + 1 : 1;
-    const newTask = new Task(newId, text.trim(), false);
+    const newTask = new Task(newId, cleanText, false);
     this.tasks.push(newTask);
 
     await this.saveTasks();
-    console.info(`TaskManager: Added task "${text}" with id ${newId}`);
+    console.info(`TaskManager: Added task "${cleanText}" with id ${newId}`);
 
     return newTask;
   }
@@ -125,6 +131,11 @@ export class TaskManager {
    * 删除任务
    */
   async deleteTask(taskId: number): Promise<boolean> {
+    // 简单验证
+    if (typeof taskId !== 'number' || taskId <= 0 || !Number.isInteger(taskId)) {
+      throw new Error('Invalid task ID');
+    }
+
     const initialLength = this.tasks.length;
     this.tasks = this.tasks.filter(task => task.id !== taskId);
 
@@ -141,6 +152,11 @@ export class TaskManager {
    * 切换任务完成状态
    */
   async toggleTaskComplete(taskId: number): Promise<boolean> {
+    // 简单验证
+    if (typeof taskId !== 'number' || taskId <= 0 || !Number.isInteger(taskId)) {
+      throw new Error('Invalid task ID');
+    }
+
     const task = this.tasks.find(t => t.id === taskId);
     if (task) {
       task.completed = !task.completed;
@@ -155,15 +171,25 @@ export class TaskManager {
    * 更新任务文本
    */
   async updateTaskText(taskId: number, newText: string): Promise<boolean> {
+    // 简单验证
+    if (typeof taskId !== 'number' || taskId <= 0 || !Number.isInteger(taskId)) {
+      throw new Error('Invalid task ID');
+    }
+
     if (!newText || newText.trim() === '') {
       throw new Error('Task text cannot be empty');
     }
 
+    if (newText.trim().length > 200) {
+      throw new Error('Task text too long (max 200 characters)');
+    }
+
+    const cleanText = newText.trim();
     const task = this.tasks.find(t => t.id === taskId);
     if (task) {
-      task.text = newText.trim();
+      task.text = cleanText;
       await this.saveTasks();
-      console.info(`TaskManager: Updated task ${taskId} text to "${newText}"`);
+      console.info(`TaskManager: Updated task ${taskId} text to "${cleanText}"`);
       return true;
     }
     return false;

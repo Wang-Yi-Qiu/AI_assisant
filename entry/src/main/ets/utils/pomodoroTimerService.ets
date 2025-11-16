@@ -36,6 +36,18 @@ export interface PomodoroStats {
 }
 
 /**
+ * 完成的番茄钟记录接口
+ */
+export interface CompletedPomodoro {
+  id: string;                 // 唯一标识
+  taskId: number;             // 关联的任务ID
+  taskText: string;           // 任务文本
+  completedAt: number;        // 完成时间戳
+  duration: number;           // 专注时长（分钟）
+  date: string;               // 日期字符串 (YYYY-MM-DD)
+}
+
+/**
  * 番茄钟事件回调接口
  */
 export interface PomodoroEventCallbacks {
@@ -74,6 +86,8 @@ export class PomodoroTimerService {
   private storage = getStorageInstance();
   private notificationService: NotificationService;
   private currentTask: string = ''; // 当前任务
+  private currentTaskId: number = -1; // 当前任务ID
+  private completedPomodoroRecords: CompletedPomodoro[] = []; // 完成的番茄钟记录
 
   private constructor() {
     this.notificationService = NotificationService.getInstance();
@@ -98,6 +112,7 @@ export class PomodoroTimerService {
       await this.storage.initialize();
       await this.loadSettings();
       await this.loadStats();
+      await this.loadCompletedPomodoroRecords();
     } catch (error) {
       console.error('PomodoroTimerService: Failed to initialize data', error);
     }
@@ -164,6 +179,31 @@ export class PomodoroTimerService {
   }
 
   /**
+   * 加载完成的番茄钟记录
+   */
+  private async loadCompletedPomodoroRecords(): Promise<void> {
+    try {
+      this.completedPomodoroRecords = await this.storage.getObject('completed_pomodoro_records', []);
+      console.info(`PomodoroTimerService: Loaded ${this.completedPomodoroRecords.length} completed records`);
+    } catch (error) {
+      console.error('PomodoroTimerService: Failed to load completed records', error);
+      this.completedPomodoroRecords = [];
+    }
+  }
+
+  /**
+   * 保存完成的番茄钟记录
+   */
+  private async saveCompletedPomodoroRecords(): Promise<void> {
+    try {
+      await this.storage.saveObject('completed_pomodoro_records', this.completedPomodoroRecords);
+      console.info(`PomodoroTimerService: Saved ${this.completedPomodoroRecords.length} completed records`);
+    } catch (error) {
+      console.error('PomodoroTimerService: Failed to save completed records', error);
+    }
+  }
+
+  /**
    * 设置事件回调
    */
   setEventCallbacks(callbacks: PomodoroEventCallbacks): void {
@@ -204,6 +244,11 @@ export class PomodoroTimerService {
     const callback = this.eventCallbacks.onPomodoroComplete;
     if (callback) {
       callback(type);
+    }
+
+    // 如果是专注完成，记录完成的番茄钟
+    if (type === 'focus') {
+      this.recordCompletedPomodoro();
     }
   }
 
@@ -617,8 +662,9 @@ export class PomodoroTimerService {
   /**
    * 设置当前任务
    */
-  setCurrentTask(task: string): void {
+  setCurrentTask(task: string, taskId: number = -1): void {
     this.currentTask = task;
+    this.currentTaskId = taskId;
   }
 
   /**
@@ -629,10 +675,78 @@ export class PomodoroTimerService {
   }
 
   /**
+   * 获取当前任务ID
+   */
+  getCurrentTaskId(): number {
+    return this.currentTaskId;
+  }
+
+  /**
+   * 记录完成的番茄钟
+   */
+  private async recordCompletedPomodoro(): Promise<void> {
+    if (this.currentTask && this.currentTaskId !== -1) {
+      const completedRecord: CompletedPomodoro = {
+        id: Date.now().toString(),
+        taskId: this.currentTaskId,
+        taskText: this.currentTask,
+        completedAt: Date.now(),
+        duration: this.settings.focusDuration,
+        date: new Date().toISOString().split('T')[0] // YYYY-MM-DD
+      };
+
+      this.completedPomodoroRecords.push(completedRecord);
+      await this.saveCompletedPomodoroRecords();
+      console.info(`PomodoroTimerService: Recorded completed pomodoro for task "${this.currentTask}" (ID: ${this.currentTaskId})`);
+    }
+  }
+
+  /**
+   * 获取今日完成的番茄钟记录
+   */
+  getTodayCompletedPomodoros(): CompletedPomodoro[] {
+    const today = new Date().toISOString().split('T')[0];
+    return this.completedPomodoroRecords.filter(record => record.date === today);
+  }
+
+  /**
+   * 获取所有完成的番茄钟记录
+   */
+  getAllCompletedPomodoros(): CompletedPomodoro[] {
+    return [...this.completedPomodoroRecords]; // 返回副本
+  }
+
+  /**
    * 销毁服务
    */
   destroy(): void {
     this.stopTimer();
     this.eventCallbacks = {};
+    this.isPaused = false;
+    this.currentState = PomodoroState.IDLE;
+    this.remainingTime = this.settings.focusDuration * 60;
+    console.info('PomodoroTimerService: Service destroyed and cleaned up');
+  }
+
+  /**
+   * 强制清理所有资源（用于内存泄漏防护）
+   */
+  forceCleanup(): void {
+    this.stopTimer();
+    this.eventCallbacks = {};
+    this.isPaused = false;
+    this.currentState = PomodoroState.IDLE;
+    this.remainingTime = this.settings.focusDuration * 60;
+    this.currentTask = '';
+    this.completedPomodoros = 0;
+    this.currentSessionPomodoros = 0;
+    console.info('PomodoroTimerService: Force cleanup completed');
+  }
+
+  /**
+   * 检查定时器状态（用于调试）
+   */
+  isTimerActive(): boolean {
+    return this.currentTimerId !== -1;
   }
 }
