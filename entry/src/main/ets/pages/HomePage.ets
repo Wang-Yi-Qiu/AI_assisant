@@ -2,6 +2,7 @@ import router from '@ohos.router';
 import { PomodoroTimerService, PomodoroState } from '../utils/pomodoroTimerService';
 import { getStorageInstance } from '../utils/preferencesStorage';
 import { TaskManager, Task } from '../utils/taskManager';
+import { handleStorageError, handleValidationError, showSuccess } from '../utils/errorService';
 import common from '@ohos.app.ability.common';
 
 @Component
@@ -40,7 +41,7 @@ export struct HomePage {
         this.selectedTaskId = firstIncompleteTask.id;
       }
     } catch (error) {
-      console.error('HomePage: Failed to initialize tasks', error);
+      handleStorageError(error, 'HomePage初始化任务');
       // 如果加载失败，使用默认任务
       this.tasks = [
         new Task(1, '设计番茄钟界面', false),
@@ -52,7 +53,22 @@ export struct HomePage {
   }
 
   aboutToDisappear() {
-    this.pomodoroTimer.destroy();
+    try {
+      // 确保定时器被正确清理
+      if (this.pomodoroTimer.isTimerActive()) {
+        console.warn('HomePage: Timer is still active, cleaning up');
+      }
+      this.pomodoroTimer.destroy();
+      console.info('HomePage: About to disappear, resources cleaned up');
+    } catch (error) {
+      console.error('HomePage: Error during cleanup', error);
+      // 即使出错也要强制清理
+      try {
+        this.pomodoroTimer.forceCleanup();
+      } catch (cleanupError) {
+        console.error('HomePage: Force cleanup failed', cleanupError);
+      }
+    }
   }
 
   private initializeTimer() {
@@ -93,14 +109,18 @@ export struct HomePage {
 
   // 添加任务
   async addTask() {
-    if (this.newTaskText.trim() === '') return;
+    if (this.newTaskText.trim() === '') {
+      handleValidationError('任务内容不能为空', '添加任务');
+      return;
+    }
 
     try {
       const newTask = await this.taskManager.addTask(this.newTaskText);
       this.tasks = this.taskManager.getTasks(); // 刷新任务列表
       this.newTaskText = ''; // 清空输入框
+      showSuccess('任务添加成功');
     } catch (error) {
-      console.error('HomePage: Failed to add task', error);
+      handleStorageError(error, '添加任务');
     }
   }
 
@@ -116,9 +136,11 @@ export struct HomePage {
           const firstIncompleteTask = this.tasks.find(task => !task.completed);
           this.selectedTaskId = firstIncompleteTask ? firstIncompleteTask.id : -1;
         }
+
+        showSuccess('任务删除成功');
       }
     } catch (error) {
-      console.error('HomePage: Failed to delete task', error);
+      handleStorageError(error, '删除任务');
     }
   }
 
@@ -293,12 +315,11 @@ export struct HomePage {
         .alignItems(HorizontalAlign.Center)
         .padding({ bottom: 20 }) // 添加底部内边距，确保内容不被底部导航栏遮挡
       }
-      .width('100%')
-      .layoutWeight(1) // 添加布局权重，确保滚动区域占据剩余空间
-      .scrollable(ScrollDirection.Vertical) // 明确指定垂直滚动
-      .scrollBar(BarState.Auto) // 自动显示滚动条
-      .edgeEffect(EdgeEffect.Spring) // 添加弹性滚动效果
+      .scrollable(ScrollDirection.Vertical) // 设置垂直滚动
+      .scrollBar(BarState.Off) // 隐藏滚动条
+      .layoutWeight(1) // 让Scroll组件占据剩余空间
 
+      
     }
     .width('100%')
     .height('100%')
@@ -355,9 +376,11 @@ export struct HomePage {
         .alignSelf(ItemAlign.Start)
         .margin({ bottom: 15 })
 
-      // 任务列表
+      // 任务列表 - 移除内部Scroll，使用Column直接布局
       Column() {
-        ForEach(this.tasks, (item: Task) => {
+        // 任务列表
+        Column() {
+          ForEach(this.tasks, (item: Task) => {
           Row() {
             // 任务选择按钮
             Button({
@@ -420,36 +443,40 @@ export struct HomePage {
           .backgroundColor(this.selectedTaskId === item.id ? '#2A2A2A' : 'transparent')
           .borderRadius(8)
           .padding({ left: 8, right: 8 })
-        }, (item: Task) => item.id.toString())
-      }
+          }, (item: Task) => item.id.toString())
+        }
+        .width('100%')
 
-      // 添加新任务
-      Row() {
-        TextInput({ placeholder: '添加新任务...', text: this.newTaskText })
-          .onChange((value: string) => {
-            this.newTaskText = value;
-          })
-          .onSubmit(() => {
-            this.addTask();
-          })
-          .layoutWeight(1)
-          .height(40)
-          .backgroundColor('#333333')
-          .fontColor(Color.White)
-          .placeholderColor(Color.Gray)
-          .borderRadius(20)
-          .padding({left:15})
+        // 添加新任务
+        Row() {
+          TextInput({ placeholder: '添加新任务...', text: this.newTaskText })
+            .onChange((value: string) => {
+              this.newTaskText = value;
+            })
+            .onSubmit(() => {
+              this.addTask();
+            })
+            .layoutWeight(1)
+            .height(40)
+            .backgroundColor('#333333')
+            .fontColor(Color.White)
+            .placeholderColor(Color.Gray)
+            .borderRadius(20)
+            .padding({left:15})
 
-        Button('+')
-          .width(40)
-          .height(40)
-          .fontSize(20)
-          .margin({ left: 10 })
-          .type(ButtonType.Circle)
-          .backgroundColor('#007DFF')
-          .onClick(() => this.addTask())
+          Button('+')
+            .width(40)
+            .height(40)
+            .fontSize(20)
+            .margin({ left: 10 })
+            .type(ButtonType.Circle)
+            .backgroundColor('#007DFF')
+            .onClick(() => this.addTask())
+        }
+        .margin({ top: 20, bottom: 10 })
       }
-      .margin({ top: 15 })
+      .width('100%')
+      .constraintSize({ maxHeight: 400 }) // 设置最大高度，内容超出时父级Scroll会处理
 
     }
     .padding(20)
