@@ -284,3 +284,6 @@ curl -X POST https://your-project.supabase.co/functions/v1/generate_chart_qwen \
 - **Crash Analytics**: AI-specific crash reporting and analysis
 
 ###After completing the modification project, there is no need to create related files. I will modify them when I need you to. Also, save them with git when making modifications.
+### Compiler location
+- **export DEVECO_SDK_HOME="/Applications/DevEco-Studio.app/Contents/sdk"
+- **/Applications/DevEco-Studio.app/Contents/tools/hvigor/bin/hvigorw assembleHap

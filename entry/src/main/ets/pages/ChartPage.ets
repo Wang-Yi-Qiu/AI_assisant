@@ -14,6 +14,12 @@ interface ChartExecutionResult {
   result?: string;
 }
 
+// 定义增强用户数据接口
+interface EnhancedUserData {
+  originalData: UserData;
+  chartType: string;
+}
+
 interface PNGExportResult {
   success: boolean;
   dataURL?: string;
@@ -474,21 +480,12 @@ export struct ChartPage {
       if (chartType) {
         // 可以根据chartType调整用户数据的配置
         console.info('[ChartPage] 指定图表类型:', chartType);
-        // 创建新对象，避免使用spread operator
-        const newUserData: Record<string, object> = {};
-        if (typeof originalData === 'object' && originalData !== null) {
-          // 手动复制属性
-          const keys = Object.keys(originalData);
-          for (let i = 0; i < keys.length; i++) {
-            const key = keys[i];
-            const value = (originalData as Record<string, object>)[key];
-            if (value !== undefined) {
-              newUserData[key] = value;
-            }
-          }
-        }
-        newUserData.chartType = { value: chartType };
-        userData = newUserData;
+        // 创建新的用户数据对象，包含图表类型信息
+        const enhancedUserData: EnhancedUserData = {
+          originalData: originalData,
+          chartType: chartType
+        };
+        userData = enhancedUserData;
       }
 
       // 调用AI服务重新生成图表配置

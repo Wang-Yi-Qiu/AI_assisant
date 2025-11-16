@@ -27,6 +27,12 @@ export interface ChartType {
   supported: boolean;
 }
 
+// 定义增强用户数据接口
+interface EnhancedUserData {
+  originalData: UserData;
+  chartType: string;
+}
+
 @Entry
 @Component
 export struct ChartTypeSelectorPage {
@@ -135,20 +141,10 @@ export struct ChartTypeSelectorPage {
       this.isLoading = true;
 
       // 构建包含图表类型的用户数据
-      const newUserData: Record<string, object> = {};
-      if (typeof originalData === 'object' && originalData !== null) {
-        // 手动复制属性
-        const keys = Object.keys(originalData);
-        for (let i = 0; i < keys.length; i++) {
-          const key = keys[i];
-          const value = (originalData as Record<string, object>)[key];
-          if (value !== undefined) {
-            newUserData[key] = value;
-          }
-        }
-      }
-      newUserData.chartType = { value: this.selectedType };
-      const userData: UserData = newUserData;
+      const userData: UserData = {
+        originalData: originalData,
+        chartType: this.selectedType
+      } as EnhancedUserData;
 
       // 调用AI服务生成图表配置
       const chartConfig: ChartConfig = await generateChart(userData);
