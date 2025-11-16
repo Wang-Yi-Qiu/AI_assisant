@@ -20,6 +20,11 @@ interface EnhancedUserData {
   chartType: string;
 }
 
+// 定义图表类型选择接口
+interface ChartTypeSelection {
+  value: string;
+}
+
 interface PNGExportResult {
   success: boolean;
   dataURL?: string;

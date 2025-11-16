@@ -33,6 +33,11 @@ interface EnhancedUserData {
   chartType: string;
 }
 
+// 定义图表类型选择接口
+interface ChartTypeSelection {
+  value: string;
+}
+
 @Entry
 @Component
 export struct ChartTypeSelectorPage {
