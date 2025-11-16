@@ -147,7 +147,7 @@ export struct ChartTypeSelectorPage {
           }
         }
       }
-      newUserData.chartType = this.selectedType;
+      newUserData.chartType = this.selectedType as object;
       const userData: UserData = newUserData;
 
       // 调用AI服务生成图表配置

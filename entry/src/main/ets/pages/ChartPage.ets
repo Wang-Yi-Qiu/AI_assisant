@@ -487,7 +487,7 @@ export struct ChartPage {
             }
           }
         }
-        newUserData.chartType = chartType;
+        newUserData.chartType = chartType as object;
         userData = newUserData;
       }
 
