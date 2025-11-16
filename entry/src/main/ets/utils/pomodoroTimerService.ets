@@ -529,6 +529,14 @@ export class PomodoroTimerService {
     }
 
     this.triggerOnTimerTick(this.remainingTime, this.getTotalTime());
+
+    // 重置后自动开始计时
+    if (this.currentState === PomodoroState.IDLE) {
+      this.startFocus();
+    } else {
+      // 如果不是IDLE状态，重新开始当前状态的计时
+      this.startTimer(this.currentState);
+    }
   }
 
   /**

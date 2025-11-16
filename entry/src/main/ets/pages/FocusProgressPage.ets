@@ -72,11 +72,34 @@ struct FocusProgressPage {
         this.timerValue = this.pomodoroTimer.getRemainingTime();
         this.currentProgress = 0;
         this.isPaused = false; // 状态变化时重置暂停状态
+
+        // 状态变化时更新当前任务
+        const currentSelectedTask = this.taskManager.getCurrentSelectedTask();
+        if (currentSelectedTask) {
+          this.currentTask = currentSelectedTask.text;
+          this.pomodoroTimer.setCurrentTask(currentSelectedTask.text);
+        }
       },
       onPomodoroComplete: (type: 'focus' | 'break') => {
         if (type === 'focus') {
           // 专注完成，显示完成提示
           console.info('专注时间完成！');
+
+          // 专注完成后，标记当前任务为完成并切换到下一个任务
+          const currentTask = this.taskManager.getCurrentSelectedTask();
+          if (currentTask && !currentTask.completed) {
+            this.taskManager.toggleTaskComplete(currentTask.id);
+          }
+
+          // 更新当前任务显示
+          const nextTask = this.taskManager.getCurrentSelectedTask();
+          if (nextTask) {
+            this.currentTask = nextTask.text;
+            this.pomodoroTimer.setCurrentTask(nextTask.text);
+          } else {
+            this.currentTask = "所有任务已完成！";
+            this.pomodoroTimer.setCurrentTask("所有任务已完成！");
+          }
         }
         // 完成时重置暂停状态
         this.isPaused = false;
@@ -134,6 +157,14 @@ struct FocusProgressPage {
     console.info('FocusProgressPage: User confirmed skip');
     try {
       await this.pomodoroTimer.skip();
+
+      // 跳过后更新当前任务
+      const currentSelectedTask = this.taskManager.getCurrentSelectedTask();
+      if (currentSelectedTask) {
+        this.currentTask = currentSelectedTask.text;
+        this.pomodoroTimer.setCurrentTask(currentSelectedTask.text);
+      }
+
       console.info('FocusProgressPage: Skip completed successfully');
     } catch (error) {
       console.error('FocusProgressPage: Skip failed', error);
