@@ -1,12 +1,14 @@
 import router from '@ohos.router';
 import { PomodoroTimerService, PomodoroState } from '../utils/pomodoroTimerService';
 import { getStorageInstance } from '../utils/preferencesStorage';
+import { TaskManager } from '../utils/taskManager';
 import common from '@ohos.app.ability.common';
 
 @Entry
 @Component
 struct FocusProgressPage {
   private pomodoroTimer: PomodoroTimerService = PomodoroTimerService.getInstance();
+  private taskManager: TaskManager = TaskManager.getInstance();
 
   @State timerValue: number = 25 * 60; // 25分钟
   @State isPaused: boolean = false;
@@ -22,11 +24,25 @@ struct FocusProgressPage {
     const context = getContext(this) as common.UIAbilityContext;
     getStorageInstance().setContext(context);
 
+    this.initializeTasks();
     this.initializeTimer();
   }
 
   aboutToDisappear() {
     this.pomodoroTimer.destroy();
+  }
+
+  private async initializeTasks(): Promise<void> {
+    try {
+      await this.taskManager.initialize();
+      // 获取当前选中的任务并设置到计时器
+      const currentSelectedTask = this.taskManager.getCurrentSelectedTask();
+      if (currentSelectedTask) {
+        this.pomodoroTimer.setCurrentTask(currentSelectedTask.text);
+      }
+    } catch (error) {
+      console.error('FocusProgressPage: Failed to initialize tasks', error);
+    }
   }
 
   private initializeTimer() {
@@ -246,7 +262,7 @@ struct FocusProgressPage {
 
       // 跳过确认对话框
     if (this.showSkipConfirmDialog) {
-      Stack() {
+      Stack({ alignContent: Alignment.Center }) {
         // 半透明背景遮罩
         Column()
           .width('100%')
@@ -294,6 +310,8 @@ struct FocusProgressPage {
       }
       .width('100%')
       .height('100%')
+      .position({ x: 0, y: 0 }) // 使用绝对定位确保对话框覆盖整个屏幕
+      .zIndex(1000) // 确保对话框在最上层
     }
   }
     .width('100%')

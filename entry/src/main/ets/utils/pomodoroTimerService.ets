@@ -503,6 +503,9 @@ export class PomodoroTimerService {
   reset(): void {
     this.stopTimer();
 
+    // 保存当前状态，判断是否需要触发状态变化事件
+    const previousState = this.currentState;
+
     switch (this.currentState) {
       case PomodoroState.FOCUSING:
         this.remainingTime = this.settings.focusDuration * 60;
@@ -519,6 +522,12 @@ export class PomodoroTimerService {
     }
 
     this.isPaused = false;
+
+    // 如果状态发生变化，触发状态变化事件
+    if (previousState !== this.currentState) {
+      this.triggerOnStateChange(this.currentState);
+    }
+
     this.triggerOnTimerTick(this.remainingTime, this.getTotalTime());
   }
 
