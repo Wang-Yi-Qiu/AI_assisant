@@ -206,17 +206,36 @@ export struct ChartPage {
 
   aboutToAppear() {
     // 每次页面显示时，重新获取最新的全局配置
-    console.info('[ChartPage] aboutToAppear, 当前全局配置:', globalChartConfig ? '存在' : '不存在');
+    console.info('[ChartPage] ========== aboutToAppear 开始诊断 ==========');
+    console.info('[ChartPage] 当前全局配置存在:', globalChartConfig ? '是' : '否');
+
     if (globalChartConfig) {
       this.chartConfig = globalChartConfig;
-      console.info('[ChartPage] 已设置图表配置:', JSON.stringify(globalChartConfig).substring(0, 100));
+      console.info('[ChartPage] ✅ 已设置图表配置');
+      console.info('[ChartPage] 图表配置预览:', JSON.stringify(globalChartConfig).substring(0, 200));
+
+      // 验证图表配置的结构
+      if (globalChartConfig.series && Array.isArray(globalChartConfig.series) && globalChartConfig.series.length > 0) {
+        console.info('[ChartPage] ✅ 图表配置包含系列数据，系列数量:', globalChartConfig.series.length);
+      } else {
+        console.error('[ChartPage] ❌ 图表配置缺少系列数据');
+        this.errorMessage = '图表配置不完整：缺少系列数据';
+        this.isLoading = false;
+      }
     } else {
-      console.warn('[ChartPage] 没有图表配置，将显示空图表');
+      console.error('[ChartPage] ❌ 没有图表配置');
       this.chartConfig = null;
-      // 如果没有配置，直接显示错误
       this.isLoading = false;
-      this.errorMessage = '没有可用的图表配置，请先生成图表';
+      this.errorMessage = '没有可用的图表配置，请先通过AI助手生成图表';
+
+      // 显示诊断信息
+      setTimeout(() => {
+        console.info('[ChartPage] 💡 提供诊断信息');
+        this.errorMessage = '诊断：可能原因 - 1)未通过AI助手生成图表 2)AI服务调用失败 3)网络连接问题';
+      }, 1000);
     }
+
+    console.info('[ChartPage] ========== aboutToAppear 诊断完成 ==========');
   }
 
   aboutToDisappear() {
@@ -522,6 +541,7 @@ export struct ChartPage {
     }
   }
 
+  
   build() {
     Column() {
       // 头部导航栏
@@ -648,7 +668,7 @@ export struct ChartPage {
                     this.isLoading = false;
                   }
                 }, 10000);
-                
+
                 // 延迟一点时间确保 chartAPI 已初始化
                 setTimeout(() => {
                   if (this.chartConfig) {
