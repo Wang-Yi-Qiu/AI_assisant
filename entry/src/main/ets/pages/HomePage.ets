@@ -61,7 +61,7 @@ export struct HomePage {
           .fontSize(28)
           .onClick(() => {
             console.info('点击设置图标');
-            router.pushNamedRoute({ name: 'SettingsPage' });
+            router.pushUrl({ url: 'pages/SettingsPage' });
           })
       }
       .width('90%')
@@ -95,7 +95,7 @@ export struct HomePage {
         .backgroundColor('#007DFF')
         .margin({ bottom: 40 })
         .onClick(() => {
-          router.pushNamedRoute({ name: 'FocusProgressPage' });
+          router.pushUrl({ url: 'pages/FocusProgressPage' });
         })
 
       Scroll() {
@@ -158,7 +158,7 @@ export struct HomePage {
     .borderRadius(15)
     .margin({ bottom: 20 })
     .onClick(() => {
-      router.pushNamedRoute({ name: 'PomodoroStatsPage' });
+      router.pushUrl({ url: 'pages/PomodoroStatsPage' });
     })
   }
 

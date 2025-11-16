@@ -105,13 +105,17 @@ export async function loadSampleData(sampleId: string, context?: common.UIAbilit
     let appContext: common.UIAbilityContext | null = context || null;
     if (!appContext) {
       try {
-        // 尝试从全局获取上下文（需要应用初始化时设置）
-        appContext = getContext() as common.UIAbilityContext;
+        // 如果没有传入context，抛出错误要求调用者提供
+        throw new AppError(
+          ErrorCode.SYSTEM_ERROR,
+          'Application context not available',
+          '应用上下文不可用，请提供context参数'
+        );
       } catch {
         throw new AppError(
           ErrorCode.SYSTEM_ERROR,
           'Application context not available',
-          '应用上下文不可用，请稍后重试'
+          '应用上下文不可用，请提供context参数'
         );
       }
     }
@@ -130,7 +134,7 @@ export async function loadSampleData(sampleId: string, context?: common.UIAbilit
     try {
       const bytes: Uint8Array = rm.getRawFileContentSync(sampleData.filePath);
       const decoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
-      rawFileContent = decoder.decodeWithStream(bytes, { stream: false });
+      rawFileContent = decoder.decode(bytes);
     } catch (fileError) {
       const errorMessage = fileError instanceof Error ? fileError.message : String(fileError);
       if (errorMessage.includes('not found') || errorMessage.includes('ENOENT') || errorMessage.includes('文件不存在')) {

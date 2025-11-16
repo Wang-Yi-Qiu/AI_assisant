@@ -5,7 +5,7 @@
  */
 
 import router from '@ohos.router';
-import { generateChart, ChartConfig, UserData } from '../utils/aiService';
+import { generateChart, ChartConfig, UserData, CSVData } from '../utils/aiService';
 import { setChartOption } from './ChartPage';
 import { ErrorHandler } from '../utils/errorHandler';
 
@@ -146,7 +146,7 @@ export struct DataInputPage {
       // 验证数据
       const userData = this.validateAndPrepareData();
 
-      if (!userData || userData.data.length === 0) {
+      if (!userData) {
         throw new Error('没有有效的数据行，请填写数据后再生成图表');
       }
 
@@ -161,8 +161,8 @@ export struct DataInputPage {
       console.info('[DataInputPage] 图表配置已设置，准备跳转');
 
       // 跳转到图表页面
-      await router.pushNamedRoute({
-        name: 'ChartPage'
+      await router.pushUrl({
+        url: 'pages/ChartPage'
       });
 
       console.info('[DataInputPage] 已跳转到图表页面');
@@ -183,15 +183,10 @@ export struct DataInputPage {
     }
   }
 
-  // 定义数据行类型，用于存储最终处理后的数据
-interface ProcessedRow {
-  [key: string]: string | number;
-}
-
   /**
    * 验证并准备数据
    */
-  private validateAndPrepareData(): UserData | null {
+  validateAndPrepareData(): UserData | null {
     try {
       console.info('[DataInputPage] 开始验证和准备数据');
       console.info('[DataInputPage] 原始数据行数:', this.tableData.length);
@@ -215,8 +210,8 @@ interface ProcessedRow {
       }
 
       // 转换数据格式，自动识别数字
-      const processedData: ProcessedRow[] = validRows.map(row => {
-        const processedRow: ProcessedRow = {};
+      const processedData: Record<string, string | number>[] = validRows.map(row => {
+        const processedRow: Record<string, string | number> = {};
         this.headers.forEach(header => {
           const value = row.get(header);
           if (value && value.trim() !== '') {

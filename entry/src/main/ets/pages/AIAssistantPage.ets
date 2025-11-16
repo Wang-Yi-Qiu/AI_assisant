@@ -34,8 +34,8 @@ export struct AIAssistantPage {
   handleUseSampleChart(sampleChart: SampleChart) {
     console.info('[AIAssistantPage] 使用示例图表:', sampleChart.id);
     setChartOption(sampleChart.chartConfig);
-    router.pushNamedRoute({
-      name: 'ChartPage'
+    router.pushUrl({
+      url: 'pages/ChartPage'
     }).catch((err: BusinessError) => {
       console.error('跳转到图表页失败:', err);
     });
@@ -87,8 +87,8 @@ export struct AIAssistantPage {
       console.info('[AIAssistantPage] 图表配置已设置，准备跳转');
 
       // 5. 跳转到图表页面
-      await router.pushNamedRoute({
-        name: 'ChartPage'
+      await router.pushUrl({
+        url: 'pages/ChartPage'
       });
       
       console.info('[AIAssistantPage] 已跳转到图表页面');
@@ -160,8 +160,8 @@ export struct AIAssistantPage {
             console.info('[AIAssistantPage] 图表配置已设置，准备跳转');
 
             // 跳转到图表页面
-            await router.pushNamedRoute({
-              name: 'ChartPage'
+            await router.pushUrl({
+              url: 'pages/ChartPage'
             });
 
             console.info('[AIAssistantPage] 已跳转到图表页面');
@@ -219,7 +219,7 @@ export struct AIAssistantPage {
 
       // 转换为字符串
       const decoder = util.TextDecoder.create('utf-8');
-      const content = decoder.decodeWithStream(new Uint8Array(buffer), { stream: false });
+      const content = decoder.decode(new Uint8Array(buffer));
 
       console.info('[AIAssistantPage] 文件读取完成，内容长度:', content.length);
       return content;
@@ -460,8 +460,8 @@ export struct AIAssistantPage {
             // 手动输入按钮（深色背景，亮色边框）
             this.ActionButton('✍️', '手动输入', false, () => {
               console.info('点击手动输入');
-              router.pushNamedRoute({
-                name: 'DataInputPage'
+              router.pushUrl({
+                url: 'pages/DataInputPage'
               }).catch((err: BusinessError) => {
                 console.error('跳转到数据输入页面失败:', err);
               });

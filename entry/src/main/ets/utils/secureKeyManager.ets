@@ -234,7 +234,7 @@ export class SecureKeyManager {
       const base64Helper = new util.Base64Helper();
       const bytes: Uint8Array = base64Helper.decodeSync(base64);
       const decoder = new util.TextDecoder();
-      const result: string = decoder.decodeWithStream(bytes, { stream: false });
+      const result: string = decoder.decode(bytes);
       return result;
     } catch (error) {
       console.error('[SecureKeyManager] Base64 解码失败:', error);
