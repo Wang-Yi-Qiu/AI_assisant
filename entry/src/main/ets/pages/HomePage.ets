@@ -264,8 +264,17 @@ export struct HomePage {
           .backgroundColor('#007DFF')
           .onClick(() => {
             // 设置当前任务到番茄钟服务
-            this.pomodoroTimer.setCurrentTask(this.getCurrentSelectedTask());
-            router.pushUrl({ url: 'pages/FocusProgressPage' });
+            const currentTaskText = this.getCurrentSelectedTask();
+            this.pomodoroTimer.setCurrentTask(currentTaskText);
+
+            // 通过参数传递选中的任务ID
+            router.pushUrl({
+              url: 'pages/FocusProgressPage',
+              params: {
+                selectedTaskId: this.selectedTaskId,
+                selectedTaskText: currentTaskText
+              }
+            });
           })
       }
       .width('80%')

@@ -4,6 +4,14 @@ import { getStorageInstance } from '../utils/preferencesStorage';
 import { TaskManager } from '../utils/taskManager';
 import common from '@ohos.app.ability.common';
 
+/**
+ * 路由参数接口
+ */
+interface RouterParams {
+  selectedTaskId?: number;
+  selectedTaskText?: string;
+}
+
 @Entry
 @Component
 struct FocusProgressPage {
@@ -24,7 +32,10 @@ struct FocusProgressPage {
     const context = getContext(this) as common.UIAbilityContext;
     getStorageInstance().setContext(context);
 
-    this.initializeTasks();
+    // 获取路由参数
+    const params = router.getParams() as RouterParams;
+
+    this.initializeTasks(params);
     this.initializeTimer();
   }
 
@@ -32,17 +43,41 @@ struct FocusProgressPage {
     this.pomodoroTimer.destroy();
   }
 
-  private async initializeTasks(): Promise<void> {
+  private async initializeTasks(params?: RouterParams): Promise<void> {
     try {
       await this.taskManager.initialize();
-      // 获取第一个未完成的任务作为当前任务
-      const incompleteTasks = this.taskManager.getIncompleteTasks();
-      if (incompleteTasks.length > 0) {
-        this.currentTask = incompleteTasks[0].text;
-        this.pomodoroTimer.setCurrentTask(incompleteTasks[0].text);
+
+      // 优先使用从主页面传递过来的任务
+      if (params?.selectedTaskText && params?.selectedTaskId) {
+        // 验证传递的任务ID是否仍然有效（未完成）
+        const selectedTask = this.taskManager.getTasks().find(task =>
+          task.id === params.selectedTaskId && !task.completed
+        );
+
+        if (selectedTask) {
+          this.currentTask = params.selectedTaskText;
+          this.pomodoroTimer.setCurrentTask(params.selectedTaskText);
+        } else {
+          // 如果传递的任务无效，使用第一个未完成的任务
+          const incompleteTasks = this.taskManager.getIncompleteTasks();
+          if (incompleteTasks.length > 0) {
+            this.currentTask = incompleteTasks[0].text;
+            this.pomodoroTimer.setCurrentTask(incompleteTasks[0].text);
+          } else {
+            this.currentTask = "暂无任务，请添加新任务";
+            this.pomodoroTimer.setCurrentTask("暂无任务，请添加新任务");
+          }
+        }
       } else {
-        this.currentTask = "暂无任务，请添加新任务";
-        this.pomodoroTimer.setCurrentTask("暂无任务，请添加新任务");
+        // 没有传递参数时，使用第一个未完成的任务
+        const incompleteTasks = this.taskManager.getIncompleteTasks();
+        if (incompleteTasks.length > 0) {
+          this.currentTask = incompleteTasks[0].text;
+          this.pomodoroTimer.setCurrentTask(incompleteTasks[0].text);
+        } else {
+          this.currentTask = "暂无任务，请添加新任务";
+          this.pomodoroTimer.setCurrentTask("暂无任务，请添加新任务");
+        }
       }
     } catch (error) {
       console.error('FocusProgressPage: Failed to initialize tasks', error);
