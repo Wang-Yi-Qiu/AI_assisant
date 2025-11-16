@@ -1,5 +1,5 @@
 import router from '@ohos.router';
-import { ChartConfig, UserData, generateChart } from '../utils/aiService';
+import { ChartConfig, UserData, generateChart, CSVData } from '../utils/aiService';
 import webview from '@ohos.web.webview';
 import picker from '@ohos.file.picker';
 import fs from '@ohos.file.fs';
@@ -20,15 +20,15 @@ interface PNGExportResult {
   error?: string;
 }
 
-interface DataWithArray {
-  data: unknown[];
-}
-
 // 辅助函数：安全地获取数据长度
 function getDataLength(userData: UserData): number {
-  if (typeof userData === 'object' && userData !== null && 'data' in userData) {
-    const dataArray = (userData as DataWithArray).data;
-    return Array.isArray(dataArray) ? dataArray.length : 0;
+  if (typeof userData === 'object' && userData !== null) {
+    const csvData = userData as CSVData;
+    if (csvData.data !== undefined) {
+      return Array.isArray(csvData.data) ? csvData.data.length : 0;
+    }
+    // 处理其他对象类型
+    return Object.keys(userData).length;
   }
   return typeof userData === 'string' ? userData.length : 0;
 }
@@ -431,12 +431,11 @@ export struct ChartPage {
       documentSelectOptions.maxSelectNumber = 1;
 
       const documentSaveOptions = new picker.DocumentSaveOptions();
-      documentSaveOptions.pickerMode = picker.DocumentPickerMode.SAVE_MODE;
       documentSaveOptions.newFileNames = [fileName];
 
       const uri = await documentViewPicker.save(documentSaveOptions);
       if (uri) {
-        const file = fs.openSync(uri, fs.OpenMode.WRITE_ONLY);
+        const file = fs.openSync(uri[0], fs.OpenMode.WRITE_ONLY);
         fs.writeSync(file.fd, uint8Array);
         fs.closeSync(file);
         console.info('[ChartPage] 文件保存成功:', uri);
@@ -475,7 +474,21 @@ export struct ChartPage {
       if (chartType) {
         // 可以根据chartType调整用户数据的配置
         console.info('[ChartPage] 指定图表类型:', chartType);
-        userData = Object.assign({}, originalData, { chartType });
+        // 创建新对象，避免使用spread operator
+        const newUserData: Record<string, object> = {};
+        if (typeof originalData === 'object' && originalData !== null) {
+          // 手动复制属性
+          const keys = Object.keys(originalData);
+          for (let i = 0; i < keys.length; i++) {
+            const key = keys[i];
+            const value = (originalData as Record<string, object>)[key];
+            if (value !== undefined) {
+              newUserData[key] = value;
+            }
+          }
+        }
+        newUserData.chartType = chartType;
+        userData = newUserData;
       }
 
       // 调用AI服务重新生成图表配置
@@ -759,8 +772,8 @@ export struct ChartPage {
         // 更换图表（主色调）
         this.ActionButton('📈', '更换图表', true, () => {
           console.info('更换图表被点击');
-          router.pushNamedRoute({
-            name: 'ChartTypeSelectorPage'
+          router.pushUrl({
+            url: 'pages/ChartTypeSelectorPage'
           }).catch((err: BusinessError) => {
             console.error('跳转到图表类型选择页面失败:', err);
           });

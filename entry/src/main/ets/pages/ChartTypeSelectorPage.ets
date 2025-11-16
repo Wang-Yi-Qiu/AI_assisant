@@ -6,7 +6,16 @@
 
 import router from '@ohos.router';
 import { getOriginalData, setChartOption } from './ChartPage';
-import { generateChart, ChartConfig, UserData } from '../utils/aiService';
+import { generateChart, ChartConfig, UserData, CSVData } from '../utils/aiService';
+
+// 辅助函数：安全地访问UserData的data属性
+function getDataFromUserData(userData: UserData): object[] | null {
+  if (typeof userData === 'object' && userData !== null) {
+    const csvData = userData as CSVData;
+    return csvData.data || null;
+  }
+  return null;
+}
 
 // 图表类型定义
 export interface ChartType {
@@ -113,7 +122,11 @@ export struct ChartTypeSelectorPage {
 
       // 检查是否有原始数据
       const originalData = getOriginalData();
-      if (!originalData || !originalData.data || originalData.data.length === 0) {
+      if (!originalData) {
+        throw new Error('没有原始数据用于生成图表');
+      }
+      const dataRows = getDataFromUserData(originalData);
+      if (!dataRows || dataRows.length === 0) {
         throw new Error('没有原始数据用于生成图表');
       }
 
@@ -122,8 +135,20 @@ export struct ChartTypeSelectorPage {
       this.isLoading = true;
 
       // 构建包含图表类型的用户数据
-      const userData: UserData = Object.assign({}, originalData);
-      userData.chartType = this.selectedType;
+      const newUserData: Record<string, object> = {};
+      if (typeof originalData === 'object' && originalData !== null) {
+        // 手动复制属性
+        const keys = Object.keys(originalData);
+        for (let i = 0; i < keys.length; i++) {
+          const key = keys[i];
+          const value = (originalData as Record<string, object>)[key];
+          if (value !== undefined) {
+            newUserData[key] = value;
+          }
+        }
+      }
+      newUserData.chartType = this.selectedType;
+      const userData: UserData = newUserData;
 
       // 调用AI服务生成图表配置
       const chartConfig: ChartConfig = await generateChart(userData);
@@ -134,8 +159,8 @@ export struct ChartTypeSelectorPage {
       console.info('[ChartTypeSelectorPage] 图表配置已设置，准备跳转');
 
       // 跳转到图表页面
-      await router.pushNamedRoute({
-        name: 'ChartPage'
+      await router.pushUrl({
+        url: 'pages/ChartPage'
       });
 
       console.info('[ChartTypeSelectorPage] 已跳转到图表页面');
