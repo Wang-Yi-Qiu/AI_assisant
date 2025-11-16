@@ -647,7 +647,7 @@ export struct ChartPage {
                     this.errorMessage = '图表加载超时，可能是网络连接问题或 ECharts 库加载失败';
                     this.isLoading = false;
                   }
-                }, 10000) ;
+                }, 10000);
                 
                 // 延迟一点时间确保 chartAPI 已初始化
                 setTimeout(() => {
