@@ -35,13 +35,19 @@ struct FocusProgressPage {
   private async initializeTasks(): Promise<void> {
     try {
       await this.taskManager.initialize();
-      // 获取当前选中的任务并设置到计时器
-      const currentSelectedTask = this.taskManager.getCurrentSelectedTask();
-      if (currentSelectedTask) {
-        this.pomodoroTimer.setCurrentTask(currentSelectedTask.text);
+      // 获取第一个未完成的任务作为当前任务
+      const incompleteTasks = this.taskManager.getIncompleteTasks();
+      if (incompleteTasks.length > 0) {
+        this.currentTask = incompleteTasks[0].text;
+        this.pomodoroTimer.setCurrentTask(incompleteTasks[0].text);
+      } else {
+        this.currentTask = "暂无任务，请添加新任务";
+        this.pomodoroTimer.setCurrentTask("暂无任务，请添加新任务");
       }
     } catch (error) {
       console.error('FocusProgressPage: Failed to initialize tasks', error);
+      this.currentTask = "准备开始专注";
+      this.pomodoroTimer.setCurrentTask("准备开始专注");
     }
   }
 
@@ -73,33 +79,16 @@ struct FocusProgressPage {
         this.currentProgress = 0;
         this.isPaused = false; // 状态变化时重置暂停状态
 
-        // 状态变化时更新当前任务
-        const currentSelectedTask = this.taskManager.getCurrentSelectedTask();
-        if (currentSelectedTask) {
-          this.currentTask = currentSelectedTask.text;
-          this.pomodoroTimer.setCurrentTask(currentSelectedTask.text);
-        }
+        // 状态变化时保持当前任务不变
+        // 不自动切换任务，让用户手动选择要专注的任务
       },
       onPomodoroComplete: (type: 'focus' | 'break') => {
         if (type === 'focus') {
           // 专注完成，显示完成提示
           console.info('专注时间完成！');
 
-          // 专注完成后，标记当前任务为完成并切换到下一个任务
-          const currentTask = this.taskManager.getCurrentSelectedTask();
-          if (currentTask && !currentTask.completed) {
-            this.taskManager.toggleTaskComplete(currentTask.id);
-          }
-
-          // 更新当前任务显示
-          const nextTask = this.taskManager.getCurrentSelectedTask();
-          if (nextTask) {
-            this.currentTask = nextTask.text;
-            this.pomodoroTimer.setCurrentTask(nextTask.text);
-          } else {
-            this.currentTask = "所有任务已完成！";
-            this.pomodoroTimer.setCurrentTask("所有任务已完成！");
-          }
+          // 专注完成后不自动标记任务完成，保持任务持久化
+          // 用户可以手动选择完成哪些任务
         }
         // 完成时重置暂停状态
         this.isPaused = false;
@@ -158,12 +147,8 @@ struct FocusProgressPage {
     try {
       await this.pomodoroTimer.skip();
 
-      // 跳过后更新当前任务
-      const currentSelectedTask = this.taskManager.getCurrentSelectedTask();
-      if (currentSelectedTask) {
-        this.currentTask = currentSelectedTask.text;
-        this.pomodoroTimer.setCurrentTask(currentSelectedTask.text);
-      }
+      // 跳过后保持当前任务不变
+      // 用户可以在主页面手动选择要专注的任务
 
       console.info('FocusProgressPage: Skip completed successfully');
     } catch (error) {

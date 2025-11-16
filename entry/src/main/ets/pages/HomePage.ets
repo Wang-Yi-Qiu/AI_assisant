@@ -18,6 +18,7 @@ export struct HomePage {
 
   @State tasks: Task[] = [];
   @State newTaskText: string = '';
+  @State selectedTaskId: number = -1; // 当前选中的任务ID
 
   aboutToAppear() {
     // 设置存储Context
@@ -32,6 +33,12 @@ export struct HomePage {
     try {
       await this.taskManager.initialize();
       this.tasks = this.taskManager.getTasks();
+
+      // 自动选择第一个未完成的任务
+      const firstIncompleteTask = this.tasks.find(task => !task.completed);
+      if (firstIncompleteTask) {
+        this.selectedTaskId = firstIncompleteTask.id;
+      }
     } catch (error) {
       console.error('HomePage: Failed to initialize tasks', error);
       // 如果加载失败，使用默认任务
@@ -39,6 +46,8 @@ export struct HomePage {
         new Task(1, '设计番茄钟界面', false),
         new Task(2, '准备周会演示文稿', true)
       ];
+      // 自动选择第一个未完成的默认任务
+      this.selectedTaskId = 1;
     }
   }
 
@@ -101,6 +110,12 @@ export struct HomePage {
       const success = await this.taskManager.deleteTask(taskId);
       if (success) {
         this.tasks = this.taskManager.getTasks(); // 刷新任务列表
+
+        // 如果删除的是当前选中的任务，重新选择第一个未完成的任务
+        if (taskId === this.selectedTaskId) {
+          const firstIncompleteTask = this.tasks.find(task => !task.completed);
+          this.selectedTaskId = firstIncompleteTask ? firstIncompleteTask.id : -1;
+        }
       }
     } catch (error) {
       console.error('HomePage: Failed to delete task', error);
@@ -158,8 +173,16 @@ export struct HomePage {
 
   // 获取当前选中的任务
   getCurrentSelectedTask(): string {
-    const selectedTask = this.taskManager.getCurrentSelectedTask();
-    return selectedTask ? selectedTask.text : '未选中任务';
+    if (this.selectedTaskId !== -1) {
+      const selectedTask = this.tasks.find(task => task.id === this.selectedTaskId);
+      return selectedTask ? selectedTask.text : '未选中任务';
+    }
+    return '未选中任务';
+  }
+
+  // 选择任务
+  selectTask(taskId: number): void {
+    this.selectedTaskId = taskId;
   }
 
   // 将秒格式化为 MM:SS
@@ -327,35 +350,67 @@ export struct HomePage {
       Column() {
         ForEach(this.tasks, (item: Task) => {
           Row() {
-            Checkbox({ name: `task_${item.id}`, group: 'tasks' })
+            // 任务选择按钮
+            Button({
+              type: ButtonType.Circle,
+              stateEffect: false
+            }) {
+              Text(this.selectedTaskId === item.id ? '✓' : '')
+                .fontSize(16)
+                .fontColor(Color.White)
+            }
+            .width(24)
+            .height(24)
+            .backgroundColor(this.selectedTaskId === item.id ? '#007DFF' : '#333333')
+            .margin({ right: 10 })
+            .onClick(() => {
+              this.selectTask(item.id);
+            })
+
+            // 任务文本
+            Text(item.text)
+              .fontSize(14)
+              .fontColor(item.completed ? Color.Gray : Color.White)
+              .decoration({ type: item.completed ? TextDecorationType.LineThrough : TextDecorationType.None })
+              .layoutWeight(1)
+              .onClick(() => {
+                // 点击任务文本也可以选择任务
+                if (!item.completed) {
+                  this.selectTask(item.id);
+                }
+              })
+
+            // 完成状态复选框
+            Checkbox({ name: `task_complete_${item.id}`, group: 'task_completion' })
               .select(item.completed)
-              .selectedColor('#007DFF')
+              .selectedColor('#4CAF50')
               .onChange(async (isSelected: boolean) => {
                 try {
                   const success = await this.taskManager.toggleTaskComplete(item.id);
                   if (success) {
                     this.tasks = this.taskManager.getTasks(); // 刷新任务列表
+                    // 如果选择的任务被完成了，清除选择
+                    if (item.id === this.selectedTaskId && isSelected) {
+                      this.selectedTaskId = -1;
+                    }
                   }
                 } catch (error) {
                   console.error('HomePage: Failed to toggle task completion', error);
                 }
               })
 
-            Text(item.text)
-              .fontSize(14)
-              .fontColor(item.completed ? Color.Gray : Color.White)
-              .decoration({ type: item.completed ? TextDecorationType.LineThrough : TextDecorationType.None })
-              .margin({ left: 10 })
-
-            Blank()
-
+            // 删除按钮
             Text('×')
               .fontSize(20)
               .fontColor(Color.Gray)
+              .margin({ left: 10 })
               .onClick(() => this.deleteTask(item.id))
           }
           .alignItems(VerticalAlign.Center)
           .padding({ top: 8, bottom: 8 })
+          .backgroundColor(this.selectedTaskId === item.id ? '#2A2A2A' : 'transparent')
+          .borderRadius(8)
+          .padding({ left: 8, right: 8 })
         }, (item: Task) => item.id.toString())
       }
 
