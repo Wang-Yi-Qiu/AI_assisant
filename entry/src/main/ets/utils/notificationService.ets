@@ -60,7 +60,11 @@ export class NotificationService {
       if (hasVibrationPermission) {
         await this.vibrate();
       } else {
-        console.warn('NotificationService: No vibration permission');
+        console.warn('NotificationService: No vibration permission, trying to request');
+        const granted = await this.requestVibratorPermission();
+        if (granted) {
+          await this.vibrate();
+        }
       }
 
     } catch (error) {
@@ -205,13 +209,42 @@ export class NotificationService {
         return false;
       }
 
-      const status = await atManager.checkAccessToken(bundleInfo.accessTokenId, 'ohos.permission.APPROXIMATELY_LOCATION');
+      const status = await atManager.checkAccessToken(bundleInfo.accessTokenId, 'ohos.permission.VIBRATE');
       const hasPermission = status === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
 
       console.info(`NotificationService: Vibrator permission status: ${hasPermission}`);
       return hasPermission;
     } catch (error) {
       console.error('NotificationService: Failed to check vibrator permission', error);
+      return false;
+    }
+  }
+
+  /**
+   * 请求震动权限
+   */
+  async requestVibratorPermission(): Promise<boolean> {
+    try {
+      if (!this.context) {
+        console.warn('NotificationService: Context not set, cannot request vibrator permission');
+        return false;
+      }
+
+      const atManager = abilityAccessCtrl.createAtManager();
+      const bundleInfo = this.context.applicationInfo;
+
+      if (!bundleInfo || !bundleInfo.accessTokenId) {
+        console.warn('NotificationService: Cannot get accessTokenId for vibrator permission request');
+        return false;
+      }
+
+      const result = await atManager.requestPermissionsFromUser(this.context, ['ohos.permission.VIBRATE']);
+      const granted = result.authResults[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
+
+      console.info(`NotificationService: Vibrator permission request result: ${granted}`);
+      return granted;
+    } catch (error) {
+      console.error('NotificationService: Failed to request vibrator permission', error);
       return false;
     }
   }

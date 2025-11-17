@@ -3,7 +3,16 @@ import { PomodoroTimerService, PomodoroState } from '../utils/pomodoroTimerServi
 import { getStorageInstance } from '../utils/preferencesStorage';
 import { TaskManager, Task } from '../utils/taskManager';
 import { handleStorageError, handleValidationError, showSuccess } from '../utils/errorService';
+import { fileDataParser, ParsedData } from '../utils/fileDataParser';
+import { dataVisualizationService } from '../utils/dataVisualizationService';
 import common from '@ohos.app.ability.common';
+
+// 任务数据接口
+interface TaskData {
+  id: number;
+  text: string;
+  completed: boolean;
+}
 
 @Component
 export struct HomePage {
@@ -21,10 +30,17 @@ export struct HomePage {
   @State newTaskText: string = '';
   @State selectedTaskId: number = -1; // 当前选中的任务ID
 
+  // 数据可视化相关状态
+  @State isProcessingFile: boolean = false;
+  @State lastParsedData: ParsedData | null = null;
+
   aboutToAppear() {
     // 设置存储Context
     const context = getContext(this) as common.UIAbilityContext;
     getStorageInstance().setContext(context);
+
+    // 设置通知服务Context
+    this.pomodoroTimer.getNotificationService().setContext(context);
 
     this.initializeTimer();
     this.initializeTasks();
@@ -90,71 +106,124 @@ export struct HomePage {
       onTimerTick: (remainingTime: number, totalTime: number) => {
         this.timerValue = remainingTime;
         this.currentProgress = this.pomodoroTimer.getProgress();
-        // 同步运行状态
-        this.isTimerRunning = this.pomodoroTimer.isRunning();
       },
       onStateChange: (newState: PomodoroState) => {
         this.currentTimerState = newState;
-        this.timerValue = this.pomodoroTimer.getRemainingTime();
-        this.currentProgress = 0;
-        this.isTimerRunning = false; // 状态变化时重置运行状态
+        this.isTimerRunning = this.pomodoroTimer.isRunning();
       },
-      onPomodoroComplete: (type: 'focus' | 'break') => {
-        if (type === 'focus') {
-          const stats = this.pomodoroTimer.getStats();
-          this.pomodoroCompleted = stats.completedToday;
-
-          // 专注完成后，自动选择下一个未完成任务
-          this.autoSelectNextTask();
-        }
-        // 完成时重置运行状态
-        this.isTimerRunning = false;
+      onSessionComplete: () => {
+        // 番茄钟完成后，自动选择下一个任务
+        this.handlePomodoroComplete();
       }
     });
   }
 
-  // 专注完成后自动选择下一个任务
-  private autoSelectNextTask(): void {
-    const nextTask = this.getNextIncompleteTask(this.selectedTaskId);
+  private handlePomodoroComplete() {
+    // 更新完成计数
+    const stats = this.pomodoroTimer.getStats();
+    this.pomodoroCompleted = stats.completedToday;
+
+    // 自动切换到下一个未完成的任务
+    const nextTask = this.tasks.find(task => !task.completed);
     if (nextTask) {
-      this.selectTask(nextTask.id);
+      this.selectedTaskId = nextTask.id;
       console.info(`专注完成，自动切换到下一个任务: ${nextTask.text}`);
     } else {
-      console.info('专注完成，但所有任务都已完成！');
       this.selectedTaskId = -1;
+      console.info('所有任务已完成，清除任务选择');
+    }
+  }
+
+  // 格式化时间显示
+  private formatTime(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  }
+
+  // 重置计时器
+  private resetTimer() {
+    try {
+      this.pomodoroTimer.reset();
+      this.timerValue = this.pomodoroTimer.getRemainingTime();
+      this.currentProgress = 0;
+      this.currentTimerState = PomodoroState.IDLE;
+      this.isTimerRunning = false;
+    } catch (error) {
+      console.error('重置计时器失败:', error);
+    }
+  }
+
+  // 开始或暂停计时器
+  private toggleTimer() {
+    try {
+      if (this.isTimerRunning) {
+        this.pomodoroTimer.pause();
+      } else {
+        // 检查是否有选中的任务
+        if (this.selectedTaskId === -1) {
+          const firstIncompleteTask = this.tasks.find(task => !task.completed);
+          if (firstIncompleteTask) {
+            this.selectedTaskId = firstIncompleteTask.id;
+            console.info(`自动选择任务: ${firstIncompleteTask.text}`);
+          } else {
+            console.warn('没有可专注的任务');
+            return;
+          }
+        }
+
+        const selectedTaskText = this.tasks.find(task => task.id === this.selectedTaskId)?.text || '未知任务';
+        this.pomodoroTimer.startFocus();
+        console.info(`开始专注任务: ${selectedTaskText} (ID: ${this.selectedTaskId})`);
+      }
+    } catch (error) {
+      console.error('计时器操作失败:', error);
     }
   }
 
   // 添加任务
-  async addTask() {
-    if (this.newTaskText.trim() === '') {
-      handleValidationError('任务内容不能为空', '添加任务');
+  private async addTask() {
+    const trimmedText = this.newTaskText.trim();
+    if (!trimmedText) {
+      handleValidationError('任务内容不能为空');
       return;
     }
 
     try {
-      const newTask = await this.taskManager.addTask(this.newTaskText);
-      this.tasks = this.taskManager.getTasks(); // 刷新任务列表
-      this.newTaskText = ''; // 清空输入框
-      showSuccess('任务添加成功');
+      const success = await this.taskManager.addTask(trimmedText);
+      if (success) {
+        this.newTaskText = '';
+        this.tasks = this.taskManager.getTasks();
+        showSuccess('任务添加成功');
+
+        // 如果这是第一个未完成的任务且当前没有选中任务，自动选择它
+        if (this.selectedTaskId === -1) {
+          const firstIncompleteTask = this.tasks.find(task => !task.completed);
+          if (firstIncompleteTask) {
+            this.selectedTaskId = firstIncompleteTask.id;
+          }
+        }
+      }
     } catch (error) {
       handleStorageError(error, '添加任务');
     }
   }
 
   // 删除任务
-  async deleteTask(taskId: number) {
+  private async deleteTask(taskId: number) {
     try {
       const success = await this.taskManager.deleteTask(taskId);
       if (success) {
-        this.tasks = this.taskManager.getTasks(); // 刷新任务列表
-
-        // 如果删除的是当前选中的任务，重新选择第一个未完成的任务
+        this.tasks = this.taskManager.getTasks();
+        // 如果删除的是当前选中的任务，清除选择
         if (taskId === this.selectedTaskId) {
+          this.selectedTaskId = -1;
+          // 自动选择另一个未完成的任务
           const firstIncompleteTask = this.tasks.find(task => !task.completed);
-          this.selectedTaskId = firstIncompleteTask ? firstIncompleteTask.id : -1;
+          if (firstIncompleteTask) {
+            this.selectedTaskId = firstIncompleteTask.id;
+          }
         }
-
         showSuccess('任务删除成功');
       }
     } catch (error) {
@@ -162,403 +231,368 @@ export struct HomePage {
     }
   }
 
-  // 开始/暂停计时器
-  toggleTimer() {
-    if (this.isTimerRunning) {
-      this.pomodoroTimer.pause();
-      this.isTimerRunning = false;
-    } else {
-      if (this.currentTimerState === PomodoroState.IDLE) {
-        // 检查是否有选中的任务
-        const currentTask = this.getCurrentSelectedTask();
-        if (!currentTask) {
-          // 如果没有选中任务，选择第一个未完成的任务
+  // 选择任务
+  private selectTask(taskId: number) {
+    this.selectedTaskId = taskId;
+    console.info(`选择任务ID: ${taskId}`);
+  }
+
+  // 任务完成状态切换
+  private async toggleTaskComplete(taskId: number) {
+    try {
+      const success = await this.taskManager.toggleTaskComplete(taskId);
+      if (success) {
+        this.tasks = this.taskManager.getTasks(); // 刷新任务列表
+        // 如果选择的任务被完成了，清除选择
+        if (taskId === this.selectedTaskId) {
+          this.selectedTaskId = -1;
+          // 自动选择下一个未完成的任务
           const firstIncompleteTask = this.tasks.find(task => !task.completed);
           if (firstIncompleteTask) {
-            this.selectTask(firstIncompleteTask.id);
-            // 显示任务选择提示
-            console.info(`自动选择任务: ${firstIncompleteTask.text}`);
+            this.selectedTaskId = firstIncompleteTask.id;
           }
         }
-
-        // 设置当前任务到番茄钟服务
-        const selectedTaskText = this.getCurrentSelectedTask();
-        if (selectedTaskText && selectedTaskText !== '未选中任务') {
-          this.pomodoroTimer.setCurrentTask(selectedTaskText, this.selectedTaskId);
-          console.info(`开始专注任务: ${selectedTaskText}`);
-        }
-
-        this.pomodoroTimer.startFocus();
-      } else {
-        this.pomodoroTimer.resume();
       }
-      this.isTimerRunning = true;
+    } catch (error) {
+      console.error('切换任务完成状态失败:', error);
     }
   }
 
-  // 重置计时器
-  resetTimer() {
-    this.pomodoroTimer.reset();
-    this.isTimerRunning = false;
-  }
-
-  // 获取当前状态文本
-  getCurrentStateText(): string {
-    switch (this.currentTimerState) {
-      case PomodoroState.FOCUSING:
-        return '专注中';
-      case PomodoroState.SHORT_BREAK:
-        return '短休息';
-      case PomodoroState.LONG_BREAK:
-        return '长休息';
-      default:
-        return '准备开始';
-    }
-  }
-
-  // 获取当前状态颜色
-  getCurrentStateColor(): string {
-    switch (this.currentTimerState) {
-      case PomodoroState.FOCUSING:
-        return '#FF6B6B';
-      case PomodoroState.SHORT_BREAK:
-        return '#4ECDC4';
-      case PomodoroState.LONG_BREAK:
-        return '#45B7D1';
-      default:
-        return '#007DFF';
-    }
-  }
-
-  // 获取当前选中的任务
-  getCurrentSelectedTask(): string {
-    if (this.selectedTaskId !== -1) {
-      const selectedTask = this.tasks.find(task => task.id === this.selectedTaskId);
-      return selectedTask ? selectedTask.text : '未选中任务';
-    }
-    return '未选中任务';
-  }
-
-  // 获取按顺序的下一个未完成任务
-  getNextIncompleteTask(afterTaskId?: number): Task | null {
-    const incompleteTasks = this.tasks.filter(task => !task.completed);
-
-    if (incompleteTasks.length === 0) {
-      return null;
+  // 选择并解析数据文件
+  private async selectAndParseDataFile() {
+    if (this.isProcessingFile) {
+      return;
     }
 
-    if (!afterTaskId) {
-      // 如果没有指定起始任务ID，返回第一个未完成任务
-      return incompleteTasks[0];
+    this.isProcessingFile = true;
+
+    try {
+      // 选择并解析文件
+      const parsedData = await fileDataParser.selectAndParseFile();
+
+      // 验证解析结果
+      const validation = fileDataParser.validateParsedData(parsedData);
+      if (!validation.isValid) {
+        handleValidationError('文件解析失败:\n' + validation.errors.join('\n'));
+        return;
+      }
+
+      // 保存解析结果
+      this.lastParsedData = parsedData;
+      showSuccess(`成功解析文件: ${parsedData.fileName}\n数据行数: ${parsedData.rowCount}, 列数: ${parsedData.columnCount}`);
+
+      // 跳转到图表类型选择页面
+      router.pushUrl({
+        url: 'pages/ChartTypeSelectorPage',
+        params: {
+          parsedData: parsedData
+        }
+      });
+
+    } catch (error) {
+      console.error('[HomePage] 文件处理失败:', error);
+      handleValidationError('文件处理失败: ' + (error as Error).message);
+    } finally {
+      this.isProcessingFile = false;
     }
-
-    // 找到指定任务之后的第一个未完成任务
-    const afterIndex = incompleteTasks.findIndex(task => task.id === afterTaskId);
-    if (afterIndex !== -1 && afterIndex < incompleteTasks.length - 1) {
-      return incompleteTasks[afterIndex + 1];
-    }
-
-    // 如果没有找到或者已是最后一个，返回第一个未完成任务
-    return incompleteTasks[0];
-  }
-
-  // 选择任务
-  selectTask(taskId: number): void {
-    this.selectedTaskId = taskId;
-  }
-
-  // 将秒格式化为 MM:SS
-  formatTime(seconds: number): string {
-    return PomodoroTimerService.formatTime(seconds);
   }
 
   build() {
-    Column() {
-      // 顶部栏: 标题和设置
-      Row() {
-        Text('番茄钟')
-          .fontSize(24)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(Color.White)
-
-        Blank()
-
-        Text('⚙️')
-          .fontSize(28)
-          .onClick(() => {
-            console.info('点击设置图标');
-            router.pushUrl({ url: 'pages/SettingsPage' });
-          })
-      }
-      .width('90%')
-      .padding({ top: 20, bottom: 40 })
-
-      // 计时器圆环
-      Stack({ alignContent: Alignment.Center }) {
-        // 背景圆环
-        Progress({ value: 100, type: ProgressType.Ring })
-          .width(280)
-          .style({ strokeWidth: 20 })
-          .color('#1F3C53')
-
-        // 进度圆环
-        Progress({ value: this.currentProgress, total: 100, type: ProgressType.Ring })
-          .width(280)
-          .style({ strokeWidth: 20 })
-          .color(this.getCurrentStateColor())
-
-        // 时间和状态
-        Column() {
-          Text(this.formatTime(this.timerValue))
-            .fontSize(60)
+    Scroll() {
+      Column() {
+        // 顶部标题栏
+        Row() {
+          Text('番茄助手')
+            .fontSize(28)
             .fontWeight(FontWeight.Bold)
             .fontColor(Color.White)
-
-          Text(this.getCurrentStateText())
-            .fontSize(14)
-            .fontColor(Color.Gray)
-            .margin({ top: 5 })
-        }
-      }
-      .margin({ bottom: 50 })
-
-      // 控制按钮
-      Row() {
-        Button('重置', { type: ButtonType.Capsule, stateEffect: true })
-          .width('25%')
-          .height(50)
-          .fontSize(16)
-          .backgroundColor('#252525')
-          .onClick(() => this.resetTimer())
-
-        Button(this.isTimerRunning ? '暂停' : (this.currentTimerState === PomodoroState.IDLE ? '开始' : '继续'), { type: ButtonType.Capsule, stateEffect: true })
-          .width('45%')
-          .height(50)
-          .fontSize(18)
-          .fontWeight(FontWeight.Bold)
-          .backgroundColor(this.getCurrentStateColor())
-          .onClick(() => this.toggleTimer())
-
-        Button('专注', { type: ButtonType.Capsule, stateEffect: true })
-          .width('25%')
-          .height(50)
-          .fontSize(16)
-          .backgroundColor('#007DFF')
-          .onClick(() => {
-            // 检查是否有未完成的任务
-            const incompleteTasks = this.tasks.filter(task => !task.completed);
-            if (incompleteTasks.length === 0) {
-              console.info('没有未完成的任务，请先添加任务');
-              return;
-            }
-
-            // 如果没有选中任务，选择第一个未完成的任务
-            if (this.selectedTaskId === -1) {
-              const firstIncompleteTask = incompleteTasks[0];
-              this.selectTask(firstIncompleteTask.id);
-            }
-
-            // 设置当前任务到番茄钟服务
-            const currentTaskText = this.getCurrentSelectedTask();
-            if (currentTaskText && currentTaskText !== '未选中任务') {
-              this.pomodoroTimer.setCurrentTask(currentTaskText, this.selectedTaskId);
-              console.info(`开始专注任务: ${currentTaskText} (ID: ${this.selectedTaskId})`);
-
-              // 通过参数传递选中的任务信息
-              router.pushUrl({
-                url: 'pages/FocusProgressPage',
-                params: {
-                  selectedTaskId: this.selectedTaskId,
-                  selectedTaskText: currentTaskText,
-                  allTasks: this.tasks.map(task => ({ id: task.id, text: task.text, completed: task.completed }))
-                }
-              });
-            }
-          })
-      }
-      .width('80%')
-      .justifyContent(FlexAlign.SpaceBetween)
-      .margin({ bottom: 40 })
-
-      Scroll() {
-        Column() {
-          // 今日番茄数卡片
-          this.PomodoroStatsCard()
-
-          // 今日任务卡片
-          this.TasksCard()
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Center)
-        .padding({ bottom: 20 }) // 添加底部内边距，确保内容不被底部导航栏遮挡
-      }
-      .scrollable(ScrollDirection.Vertical) // 设置垂直滚动
-      .scrollBar(BarState.Off) // 隐藏滚动条
-      .layoutWeight(1) // 让Scroll组件占据剩余空间
-
-      
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor('#1C1C1C')
-    .padding({ left: 15, right: 15 })
-    .alignItems(HorizontalAlign.Center)
-  }
-
-  @Builder
-  PomodoroStatsCard(){
-    Column() {
-      Row() {
-        Text('今日番茄数')
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(Color.White)
-        Blank()
-      }
-      .margin({ bottom: 10 })
-
-      Row().alignItems(VerticalAlign.Center) {
-        Text(`已完成 ${this.pomodoroCompleted} 个，目标 ${this.pomodoroTarget} 个`)
-          .fontSize(14)
-          .fontColor(Color.Gray)
-        Blank()
-        Stack({ alignContent: Alignment.Center }) {
-          Progress({ value: (this.pomodoroCompleted / this.pomodoroTarget) * 100, type: ProgressType.Ring })
-            .width(50)
-            .style({ strokeWidth: 8 })
-            .color('#007DFF')
-          Text(`${this.pomodoroCompleted}/${this.pomodoroTarget}`)
-            .fontSize(12)
-            .fontColor(Color.White)
-        }
-      }
-    }
-    .padding(20)
-    .width('90%')
-    .backgroundColor('#252525')
-    .borderRadius(15)
-    .margin({ bottom: 20 })
-    .onClick(() => {
-      router.pushUrl({ url: 'pages/PomodoroHistoryPage' });
-    })
-  }
-
-  @Builder
-  TasksCard(){
-    Column() {
-      Text('今日任务')
-        .fontSize(16)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(Color.White)
-        .alignSelf(ItemAlign.Start)
-        .margin({ bottom: 15 })
-
-      // 任务列表 - 移除内部Scroll，使用Column直接布局
-      Column() {
-        // 任务列表
-        Column() {
-          ForEach(this.tasks, (item: Task) => {
-          Row() {
-            // 任务选择按钮
-            Button({
-              type: ButtonType.Circle,
-              stateEffect: false
-            }) {
-              Text(this.selectedTaskId === item.id ? '✓' : '')
-                .fontSize(16)
-                .fontColor(Color.White)
-            }
-            .width(24)
-            .height(24)
-            .backgroundColor(this.selectedTaskId === item.id ? '#007DFF' : '#333333')
-            .margin({ right: 10 })
-            .onClick(() => {
-              this.selectTask(item.id);
-            })
-
-            // 任务文本
-            Text(item.text)
-              .fontSize(14)
-              .fontColor(item.completed ? Color.Gray : Color.White)
-              .decoration({ type: item.completed ? TextDecorationType.LineThrough : TextDecorationType.None })
-              .layoutWeight(1)
-              .onClick(() => {
-                // 点击任务文本也可以选择任务
-                if (!item.completed) {
-                  this.selectTask(item.id);
-                }
-              })
-
-            // 完成状态复选框
-            Checkbox({ name: `task_complete_${item.id}`, group: 'task_completion' })
-              .select(item.completed)
-              .selectedColor('#4CAF50')
-              .onChange(async (isSelected: boolean) => {
-                try {
-                  const success = await this.taskManager.toggleTaskComplete(item.id);
-                  if (success) {
-                    this.tasks = this.taskManager.getTasks(); // 刷新任务列表
-                    // 如果选择的任务被完成了，清除选择
-                    if (item.id === this.selectedTaskId && isSelected) {
-                      this.selectedTaskId = -1;
-                    }
-                  }
-                } catch (error) {
-                  console.error('HomePage: Failed to toggle task completion', error);
-                }
-              })
-
-            // 删除按钮
-            Text('×')
-              .fontSize(20)
-              .fontColor(Color.Gray)
-              .margin({ left: 10 })
-              .onClick(() => this.deleteTask(item.id))
-          }
-          .alignItems(VerticalAlign.Center)
-          .padding({ top: 8, bottom: 8 })
-          .backgroundColor(this.selectedTaskId === item.id ? '#2A2A2A' : 'transparent')
-          .borderRadius(8)
-          .padding({ left: 8, right: 8 })
-          }, (item: Task) => item.id.toString())
-        }
-        .width('100%')
-
-        // 添加新任务
-        Row() {
-          TextInput({ placeholder: '添加新任务...', text: this.newTaskText })
-            .onChange((value: string) => {
-              this.newTaskText = value;
-            })
-            .onSubmit(() => {
-              this.addTask();
-            })
             .layoutWeight(1)
-            .height(40)
-            .backgroundColor('#333333')
-            .fontColor(Color.White)
-            .placeholderColor(Color.Gray)
-            .borderRadius(20)
-            .padding({left:15})
 
-          Button('+')
-            .width(40)
-            .height(40)
-            .fontSize(20)
-            .margin({ left: 10 })
-            .type(ButtonType.Circle)
-            .backgroundColor('#007DFF')
-            .onClick(() => this.addTask())
+          Button('设置')
+            .fontSize(16)
+            .fontColor('#007DFF')
+            .backgroundColor('transparent')
+            .onClick(() => {
+              router.pushUrl({ url: 'pages/SettingsPage' });
+            })
         }
-        .margin({ top: 20, bottom: 10 })
+        .width('100%')
+        .padding({ top: 20, bottom: 40 })
+
+        // 主计时器卡片
+        Column() {
+          Stack({ alignContent: Alignment.Center }) {
+            Progress({ value: 100, type: ProgressType.Ring })
+              .width(200)
+              .height(200)
+              .style({ strokeWidth: 20 })
+              .color('#333333')
+
+            Progress({ value: this.currentProgress, total: 100, type: ProgressType.Ring })
+              .width(200)
+              .height(200)
+              .style({ strokeWidth: 20 })
+              .color('#007DFF')
+
+            Column() {
+              Text(this.formatTime(this.timerValue))
+                .fontSize(40)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(Color.White)
+
+              Text(this.currentTimerState === PomodoroState.FOCUSING ? '专注中' : '休息中')
+                .fontSize(16)
+                .fontColor('#CCCCCC')
+                .margin({ top: 5 })
+            }
+          }
+          .margin({ bottom: 50 })
+
+          // 控制按钮
+          Row() {
+            Button('重置', { type: ButtonType.Capsule, stateEffect: true })
+              .width(80)
+              .height(40)
+              .fontSize(14)
+              .backgroundColor('#666666')
+              .onClick(() => this.resetTimer())
+
+            Button(this.isTimerRunning ? '暂停' : (this.currentTimerState === PomodoroState.IDLE ? '开始' : '继续'), { type: ButtonType.Capsule, stateEffect: true })
+              .width(80)
+              .height(40)
+              .fontSize(14)
+              .backgroundColor(this.isTimerRunning ? '#FF6B6B' : '#4CAF50')
+              .margin({ left: 20, right: 20 })
+              .onClick(() => this.toggleTimer())
+
+            Button('专注', { type: ButtonType.Capsule, stateEffect: true })
+              .width(80)
+              .height(40)
+              .fontSize(14)
+              .backgroundColor('#007DFF')
+              .onClick(() => {
+                if (this.selectedTaskId === -1) {
+                  const firstIncompleteTask = this.tasks.find(task => !task.completed);
+                  if (firstIncompleteTask) {
+                    this.selectedTaskId = firstIncompleteTask.id;
+                  }
+                }
+
+                const selectedTask = this.tasks.find(task => task.id === this.selectedTaskId);
+                if (selectedTask) {
+                  const taskData: TaskData = { id: selectedTask.id, text: selectedTask.text, completed: selectedTask.completed };
+                  console.info(`开始专注任务: ${selectedTask.text} (ID: ${this.selectedTaskId})`);
+
+                  router.pushUrl({
+                    url: 'pages/FocusProgressPage',
+                    params: {
+                      taskData: taskData,
+                      taskId: this.selectedTaskId
+                    }
+                  });
+                } else {
+                  console.warn('没有选中的任务');
+                }
+              })
+          }
+        }
+        .margin({ bottom: 40 })
+
+        // 番茄钟统计
+        Column() {
+          Text('今日进度')
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Color.White)
+            .alignSelf(ItemAlign.Start)
+            .margin({ bottom: 10 })
+
+          Text(`已完成 ${this.pomodoroCompleted} 个，目标 ${this.pomodoroTarget} 个`)
+            .fontSize(16)
+            .fontColor('#CCCCCC')
+            .margin({ bottom: 15 })
+
+          Stack({ alignContent: Alignment.Center }) {
+            Progress({ value: (this.pomodoroCompleted / this.pomodoroTarget) * 100, type: ProgressType.Ring })
+              .width(100)
+              .height(100)
+              .style({ strokeWidth: 8 })
+              .color('#007DFF')
+
+            Text(`${this.pomodoroCompleted}/${this.pomodoroTarget}`)
+              .fontSize(20)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(Color.White)
+          }
+        }
+        .margin({ bottom: 20 })
+
+        // 今日任务跳转按钮
+        Button() {
+          Row() {
+            Text('🍅 今日番茄记录')
+              .fontSize(18)
+              .fontColor(Color.White)
+              .layoutWeight(1)
+            Text('→')
+              .fontSize(18)
+              .fontColor('#007DFF')
+          }
+          .width('100%')
+          .padding({ left: 20, right: 20 })
+        }
+        .type(ButtonType.Normal)
+        .backgroundColor('#2A2A2A')
+        .borderRadius(12)
+        .height(50)
+        .margin({ bottom: 15 })
+        .onClick(() => {
+          router.pushUrl({ url: 'pages/PomodoroHistoryPage' });
+        })
+
+        // 数据可视化入口按钮
+        Button() {
+          Row() {
+            Text('📊 数据可视化')
+              .fontSize(18)
+              .fontColor(Color.White)
+              .layoutWeight(1)
+            if (this.isProcessingFile) {
+              LoadingProgress()
+                .width(20)
+                .height(20)
+                .color('#007DFF')
+            } else {
+              Text('→')
+                .fontSize(18)
+                .fontColor('#007DFF')
+            }
+          }
+          .width('100%')
+          .padding({ left: 20, right: 20 })
+        }
+        .type(ButtonType.Normal)
+        .backgroundColor(this.isProcessingFile ? '#333333' : '#2A2A2A')
+        .borderRadius(12)
+        .height(50)
+        .margin({ bottom: 20 })
+        .enabled(!this.isProcessingFile)
+        .onClick(() => {
+          this.selectAndParseDataFile();
+        })
+
+        // 任务管理
+        Column() {
+          Text('今日任务')
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Color.White)
+            .alignSelf(ItemAlign.Start)
+            .margin({ bottom: 15 })
+
+          // 任务列表
+          Column() {
+            ForEach(this.tasks, (item: Task) => {
+              Row() {
+                // 任务选择和内容
+                Row() {
+                  // 选择指示器
+                  Circle({ width: 8, height: 8 })
+                    .fill(this.selectedTaskId === item.id ? '#007DFF' : '#666666')
+                    .margin({ right: 10 })
+
+                  // 任务文本
+                  Text(item.text)
+                    .fontSize(16)
+                    .fontColor(item.completed ? '#888888' : Color.White)
+                    .decoration({ type: item.completed ? TextDecorationType.LineThrough : TextDecorationType.None })
+                    .maxLines(2)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    .layoutWeight(1)
+                    .onClick(() => {
+                      // 点击任务文本也可以选择任务
+                      if (!item.completed) {
+                        this.selectTask(item.id);
+                      }
+                    })
+
+                  // 完成状态复选框
+                  Checkbox({ name: `task_complete_${item.id}`, group: 'task_completion' })
+                    .select(item.completed)
+                    .selectedColor('#4CAF50')
+                    .onChange(async (isSelected: boolean) => {
+                      try {
+                        const success = await this.taskManager.toggleTaskComplete(item.id);
+                        if (success) {
+                          this.tasks = this.taskManager.getTasks(); // 刷新任务列表
+                          // 如果选择的任务被完成了，清除选择
+                          if (item.id === this.selectedTaskId && isSelected) {
+                            this.selectedTaskId = -1;
+                          }
+                        }
+                      } catch (error) {
+                        console.error('HomePage: Failed to toggle task completion', error);
+                      }
+                    })
+
+                  // 删除按钮
+                  Text('×')
+                    .fontSize(20)
+                    .fontColor(Color.Gray)
+                    .margin({ left: 10 })
+                    .onClick(() => this.deleteTask(item.id))
+                }
+                .alignItems(VerticalAlign.Center)
+                .width('100%')
+                .padding({ top: 8, bottom: 8 })
+                .backgroundColor(this.selectedTaskId === item.id ? '#2A2A2A' : 'transparent')
+                .borderRadius(8)
+                .padding({ left: 8, right: 8 })
+              }
+            }, (item: Task) => item.id.toString())
+
+            // 添加新任务
+            Row() {
+              TextInput({ placeholder: '添加新任务...', text: this.newTaskText })
+                .onChange((value: string) => {
+                  this.newTaskText = value;
+                })
+                .onSubmit(() => {
+                  this.addTask();
+                })
+                .layoutWeight(1)
+                .height(40)
+                .backgroundColor('#333333')
+                .fontColor(Color.White)
+                .placeholderColor(Color.Gray)
+                .borderRadius(20)
+                .padding({left:15})
+
+              Button('+')
+                .width(40)
+                .height(40)
+                .fontSize(20)
+                .margin({ left: 10 })
+                .type(ButtonType.Circle)
+                .backgroundColor('#007DFF')
+                .onClick(() => this.addTask())
+            }
+            .width('100%')
+            .margin({ top: 20, bottom: 10 })
+          }
+          .width('100%')
+        }
+        .width('90%')
+        .padding(20)
+        .backgroundColor('#252525')
+        .borderRadius(15)
       }
       .width('100%')
-      .constraintSize({ maxHeight: 400 }) // 设置最大高度，内容超出时父级Scroll会处理
-
+      .padding({ left: 15, right: 15, bottom: 20 }) // 添加底部内边距，确保内容不被底部导航栏遮挡
     }
-    .padding(20)
-    .width('90%')
-    .backgroundColor('#252525')
-    .borderRadius(15)
+    .scrollable(ScrollDirection.Vertical)
+    .scrollBar(BarState.Off)
+    .backgroundColor('#1C1C1C')
+    .height('100%')
   }
 }

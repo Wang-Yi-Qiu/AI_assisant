@@ -595,7 +595,7 @@ export class PomodoroTimerService {
   }
 
   /**
-   * 停止并重置到空闲状态
+   * 停止并重置到空闲状态（放弃当前专注，不记录完成）
    */
   stop(): void {
     this.stopTimer();
@@ -604,6 +604,14 @@ export class PomodoroTimerService {
     this.remainingTime = this.settings.focusDuration * 60;
     this.triggerOnStateChange(PomodoroState.IDLE);
     this.triggerOnTimerTick(this.remainingTime, this.getTotalTime());
+  }
+
+  /**
+   * 放弃当前专注（不记录为完成）
+   */
+  abandon(): void {
+    console.info('PomodoroTimerService: Abandoning current focus session');
+    this.stop(); // 停止但不触发完成事件
   }
 
   /**
@@ -748,5 +756,12 @@ export class PomodoroTimerService {
    */
   isTimerActive(): boolean {
     return this.currentTimerId !== -1;
+  }
+
+  /**
+   * 获取通知服务实例
+   */
+  getNotificationService(): NotificationService {
+    return this.notificationService;
   }
 }

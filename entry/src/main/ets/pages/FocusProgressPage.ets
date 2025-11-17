@@ -170,7 +170,9 @@ struct FocusProgressPage {
   // 放弃
   abandonFocus() {
     try {
-      this.pomodoroTimer.stop();
+      // 使用abandon方法放弃当前专注，不记录为完成
+      this.pomodoroTimer.abandon();
+      console.info('FocusProgressPage: User abandoned focus session, no completion recorded');
       // 使用replaceUrl回到主页，避免用户通过返回键回到专注页面
       router.replaceUrl({ url: 'pages/Index' });
     } catch (error) {

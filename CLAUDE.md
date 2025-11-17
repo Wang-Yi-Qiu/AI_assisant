@@ -287,3 +287,4 @@ curl -X POST https://your-project.supabase.co/functions/v1/generate_chart_qwen \
 ### Compiler location
 - **export DEVECO_SDK_HOME="/Applications/DevEco-Studio.app/Contents/sdk"
 - **/Applications/DevEco-Studio.app/Contents/tools/hvigor/bin/hvigorw assembleHap
+### After each project modification, compile it to confirm whether it can run.
