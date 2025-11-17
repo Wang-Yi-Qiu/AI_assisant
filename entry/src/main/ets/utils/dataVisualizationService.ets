@@ -4,7 +4,7 @@
  * 支持多种图表类型和智能推荐
  */
 
-import { ChartConfig, UserData } from './aiService';
+import { ChartConfig, UserData, EChartsTitle, EChartsLegend, EChartsGrid, EChartsTooltip } from './aiService';
 import { ParsedData } from './fileDataParser';
 
 // 图表类型枚举
@@ -50,38 +50,32 @@ export interface ChartTypeInfo {
   description: string;
 }
 
-// 图表配置相关接口
-export interface ChartTooltipConfig {
-  trigger: 'item' | 'axis';
-  backgroundColor: string;
-  textStyle: {
+// 图表配置相关接口 - 使用aiService中的ECharts接口
+export interface ChartTooltipConfig extends EChartsTooltip {
+  backgroundColor?: string;
+  textStyle?: {
     color: string;
   };
 }
 
-export interface ChartLegendConfig {
-  textStyle: {
+export interface ChartLegendConfig extends EChartsLegend {
+  textStyle?: {
     color: string;
   };
 }
 
-export interface ChartGridConfig {
-  left: string;
-  right: string;
-  bottom: string;
-  containLabel: boolean;
+export interface ChartGridConfig extends EChartsGrid {
 }
 
-export interface ChartTitleConfig {
-  text: string;
-  textStyle: {
+export interface ChartTitleConfig extends EChartsTitle {
+  textStyle?: {
     color: string;
     fontSize: number;
   };
 }
 
 export interface ChartBasicConfig {
-  title: string;
+  title: EChartsTitle;
   backgroundColor: string;
   tooltip: ChartTooltipConfig;
   legend: ChartLegendConfig;
@@ -233,8 +227,11 @@ export class DataVisualizationService {
 
     // 检查是否为时间型
     const dateCount = values.filter(val => {
-      const date = new Date(val);
-      return !isNaN(date.getTime());
+      if (typeof val === 'string' || typeof val === 'number') {
+        const date = new Date(val);
+        return !isNaN(date.getTime());
+      }
+      return false;
     }).length;
     if (dateCount / values.length > 0.7) {
       return DataType.TEMPORAL;
@@ -459,7 +456,13 @@ export class DataVisualizationService {
     };
 
     const config: ChartBasicConfig = {
-      title: this.generateChartTitle(chartType),
+      title: {
+        text: this.generateChartTitle(chartType),
+        textStyle: {
+          color: '#ffffff',
+          fontSize: 16
+        }
+      },
       backgroundColor: '#1C1C1C',
       tooltip: tooltipConfig,
       legend: legendConfig,
@@ -470,29 +473,29 @@ export class DataVisualizationService {
     // 根据图表类型配置ECharts
     switch (chartType) {
       case ChartType.BAR:
-        this.configureBarChart(config, userData, numericalFields, categoricalFields);
+        this.configureBarChart(config as ChartConfig, userData, numericalFields, categoricalFields);
         break;
       case ChartType.LINE:
-        this.configureLineChart(config, userData, numericalFields, categoricalFields, temporalFields);
+        this.configureLineChart(config as ChartConfig, userData, numericalFields, categoricalFields, temporalFields);
         break;
       case ChartType.SCATTER:
-        this.configureScatterChart(config, userData, numericalFields, categoricalFields);
+        this.configureScatterChart(config as ChartConfig, userData, numericalFields, categoricalFields);
         break;
       case ChartType.PIE:
-        this.configurePieChart(config, userData, numericalFields, categoricalFields);
+        this.configurePieChart(config as ChartConfig, userData, numericalFields, categoricalFields);
         break;
       case ChartType.AREA:
-        this.configureAreaChart(config, userData, numericalFields, categoricalFields, temporalFields);
+        this.configureAreaChart(config as ChartConfig, userData, numericalFields, categoricalFields, temporalFields);
         break;
       case ChartType.HEATMAP:
-        this.configureHeatmapChart(config, userData, numericalFields, categoricalFields);
+        this.configureHeatmapChart(config as ChartConfig, userData, numericalFields, categoricalFields);
         break;
       default:
-        this.configureBarChart(config, userData, numericalFields, categoricalFields);
+        this.configureBarChart(config as ChartConfig, userData, numericalFields, categoricalFields);
         break;
     }
 
-    return config;
+    return config as ChartConfig;
   }
 
   /**
@@ -556,29 +559,29 @@ export class DataVisualizationService {
     // 根据图表类型配置ECharts
     switch (chartType) {
       case ChartType.BAR:
-        this.configureBarChartFromParsedData(config, parsedData, numericalFields, categoricalFields);
+        this.configureBarChartFromParsedData(config as ChartConfig, parsedData, numericalFields, categoricalFields);
         break;
       case ChartType.LINE:
-        this.configureLineChartFromParsedData(config, parsedData, numericalFields, categoricalFields, temporalFields);
+        this.configureLineChartFromParsedData(config as ChartConfig, parsedData, numericalFields, categoricalFields, temporalFields);
         break;
       case ChartType.SCATTER:
-        this.configureScatterChartFromParsedData(config, parsedData, numericalFields, categoricalFields);
+        this.configureScatterChartFromParsedData(config as ChartConfig, parsedData, numericalFields, categoricalFields);
         break;
       case ChartType.PIE:
-        this.configurePieChartFromParsedData(config, parsedData, numericalFields, categoricalFields);
+        this.configurePieChartFromParsedData(config as ChartConfig, parsedData, numericalFields, categoricalFields);
         break;
       case ChartType.AREA:
-        this.configureAreaChartFromParsedData(config, parsedData, numericalFields, categoricalFields, temporalFields);
+        this.configureAreaChartFromParsedData(config as ChartConfig, parsedData, numericalFields, categoricalFields, temporalFields);
         break;
       case ChartType.HEATMAP:
-        this.configureHeatmapChartFromParsedData(config, parsedData, numericalFields, categoricalFields);
+        this.configureHeatmapChartFromParsedData(config as ChartConfig, parsedData, numericalFields, categoricalFields);
         break;
       default:
-        this.configureBarChartFromParsedData(config as unknown as ChartConfig, parsedData, numericalFields, categoricalFields);
+        this.configureBarChartFromParsedData(config as ChartConfig, parsedData, numericalFields, categoricalFields);
         break;
     }
 
-    return config as unknown as ChartConfig;
+    return config as ChartConfig;
   }
 
   /**

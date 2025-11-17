@@ -141,7 +141,7 @@ interface EChartsTooltipAxisPointer {
 }
 
 // ECharts工具提示接口
-interface EChartsTooltip {
+export interface EChartsTooltip {
   trigger?: 'item' | 'axis';
   axisPointer?: EChartsTooltipAxisPointer;
 }
