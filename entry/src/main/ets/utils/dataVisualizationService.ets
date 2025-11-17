@@ -11,6 +11,20 @@ import { ParsedData } from './fileDataParser';
 type GenericObject = Record<string, Object | undefined>;
 type QuickFix = GenericObject; // 快速修复类型
 
+// 扩展的ChartConfig接口，包含所有可能的属性
+export interface ExtendedChartConfig {
+  title?: Object;
+  backgroundColor?: string;
+  tooltip?: Object;
+  legend?: Object;
+  grid?: Object;
+  xAxis?: AxisConfig;
+  yAxis?: AxisConfig;
+  series?: SeriesConfig[];
+  visualMap?: VisualMapConfig;
+  data?: Object[];
+}
+
 // 通用对象接口，用于修复所有对象字面量
 export interface UniversalObject {
   name?: string;
@@ -97,6 +111,13 @@ export interface AxisLabelStyle {
   rotate?: number;
 }
 
+// ECharts配置对象接口
+export interface AxisConfig {
+  type: string;
+  data?: string[];
+  axisLabel?: AxisLabelStyle;
+}
+
 export interface ItemStyle {
   color?: string;
 }
@@ -113,11 +134,14 @@ export interface TextStyleWithColor {
   color?: string;
 }
 
-// ECharts配置对象接口
-export interface AxisConfig {
-  type: string;
-  data?: string[];
-  axisLabel?: AxisLabelStyle;
+export interface EmphasisItemStyle {
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowColor?: string;
+}
+
+export interface Emphasis {
+  itemStyle?: EmphasisItemStyle;
 }
 
 export interface SeriesConfig {
@@ -135,13 +159,7 @@ export interface SeriesConfig {
   color?: string;
   roseType?: string;
   center?: string[];
-  emphasis?: {
-    itemStyle?: {
-      shadowBlur?: number;
-      shadowOffsetX?: number;
-      shadowColor?: string;
-    };
-  };
+  emphasis?: Emphasis;
 }
 
 export interface VisualMapConfig {
@@ -153,6 +171,12 @@ export interface VisualMapConfig {
   bottom?: string;
   inRange?: InRange;
   textStyle?: TextStyleWithColor;
+}
+
+// 热力图系列配置接口
+export interface HeatmapSeriesConfig extends SeriesConfig {
+  data: number[][];
+  emphasis?: Emphasis;
 }
 
 export interface ChartBasicConfig {
@@ -684,24 +708,26 @@ export class DataVisualizationService {
    * 配置条形图
    */
   private configureBarChart(config: ChartConfig, userData: UserData, numericalFields: FieldInfo[], categoricalFields: FieldInfo[]): void {
+    const configObj = config as ExtendedChartConfig;
     const xField = categoricalFields.length > 0 ? categoricalFields[0].name : 'category';
     const yField = numericalFields.length > 0 ? numericalFields[0].name : 'value';
 
-    (config as unknown as GenericObject).xAxis = {
+    configObj.xAxis = {
       type: 'category',
       data: [],
       axisLabel: {
         color: '#ffffff'
       } as AxisLabelStyle
     } as AxisConfig;
-    (config as unknown as GenericObject).yAxis = {
+
+    configObj.yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
       } as AxisLabelStyle
     } as AxisConfig;
 
-    (config as unknown as GenericObject).series = [{
+    configObj.series = [{
       type: 'bar',
       data: []
     } as SeriesConfig];
@@ -711,24 +737,27 @@ export class DataVisualizationService {
    * 配置折线图
    */
   private configureLineChart(config: ChartConfig, userData: UserData, numericalFields: FieldInfo[], categoricalFields: FieldInfo[], temporalFields: FieldInfo[]): void {
+    const configObj = config as ExtendedChartConfig;
+
     const xField = temporalFields.length > 0 ? temporalFields[0].name : (categoricalFields.length > 0 ? categoricalFields[0].name : 'x');
     const yField = numericalFields.length > 0 ? numericalFields[0].name : 'value';
 
-    (config as unknown as GenericObject).xAxis = {
+    configObj.xAxis = {
       type: 'category',
       data: [],
       axisLabel: {
         color: '#ffffff'
       } as AxisLabelStyle
     } as AxisConfig;
-    (config as unknown as GenericObject).yAxis = {
+
+    configObj.yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
       } as AxisLabelStyle
     } as AxisConfig;
 
-    (config as unknown as GenericObject).series = [{
+    configObj.series = [{
       type: 'line',
       data: []
     } as SeriesConfig];
@@ -741,20 +770,20 @@ export class DataVisualizationService {
     const xField = numericalFields.length >= 2 ? numericalFields[1].name : (categoricalFields.length > 0 ? categoricalFields[0].name : 'x');
     const yField = numericalFields.length >= 1 ? numericalFields[0].name : 'y';
 
-    (config as unknown as GenericObject).xAxis = {
+    (config as ExtendedChartConfig).xAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
       } as AxisLabelStyle
     } as AxisConfig;
-    (config as unknown as GenericObject).yAxis = {
+    (config as ExtendedChartConfig).yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
       } as AxisLabelStyle
     } as AxisConfig;
 
-    (config as unknown as GenericObject).series = [{
+    (config as ExtendedChartConfig).series = [{
       type: 'scatter',
       data: []
     } as SeriesConfig];
@@ -764,12 +793,12 @@ export class DataVisualizationService {
    * 配置饼图
    */
   private configurePieChart(config: ChartConfig, userData: UserData, numericalFields: FieldInfo[], categoricalFields: FieldInfo[]): void {
-    const configObj = config as GenericObject;
+    const configObj = config as ExtendedChartConfig;
     configObj.xAxis = undefined;
     configObj.yAxis = undefined;
     configObj.grid = undefined;
 
-    (config as unknown as GenericObject).series = [{
+    (config as ExtendedChartConfig).series = [{
       type: 'pie',
       radius: '50%',
       data: []
@@ -783,8 +812,8 @@ export class DataVisualizationService {
     this.configureLineChart(config, userData, numericalFields, categoricalFields, temporalFields);
 
     if (config.series && Array.isArray(config.series)) {
-      const seriesArray = (config as unknown as GenericObject).series as GenericObject[];
-      seriesArray.forEach((serie: GenericObject) => {
+      const seriesArray = (config as ExtendedChartConfig).series as SeriesConfig[];
+      seriesArray.forEach((serie: SeriesConfig) => {
         serie.type = 'line';
         serie.areaStyle = {
           opacity: 0.3
@@ -807,14 +836,14 @@ export class DataVisualizationService {
     const yField = categoricalFields[1].name || (numericalFields[0].name);
     const colorField = numericalFields[0].name;
 
-    (config as unknown as GenericObject).xAxis = {
+    (config as ExtendedChartConfig).xAxis = {
       type: 'category',
       data: [],
       axisLabel: {
         color: '#ffffff'
       } as AxisLabelStyle
     } as AxisConfig;
-    (config as unknown as GenericObject).yAxis = {
+    (config as ExtendedChartConfig).yAxis = {
       type: 'category',
       data: [],
       axisLabel: {
@@ -822,7 +851,7 @@ export class DataVisualizationService {
       } as AxisLabelStyle
     } as AxisConfig;
 
-    (config as unknown as GenericObject).visualMap = {
+    (config as ExtendedChartConfig).visualMap = {
       min: 0,
       max: 100,
       calculable: true,
@@ -834,7 +863,7 @@ export class DataVisualizationService {
       } as TextStyleWithColor
     } as VisualMapConfig;
 
-    (config as unknown as GenericObject).series = [{
+    (config as ExtendedChartConfig).series = [{
       type: 'heatmap',
       data: []
     } as SeriesConfig];
@@ -889,9 +918,9 @@ export class DataVisualizationService {
       }
 
       // 填充坐标轴数据
-      const xAxisConfig = (config as unknown as GenericObject).xAxis as GenericObject;
+      const xAxisConfig = (config as ExtendedChartConfig).xAxis as AxisConfig;
       if (xAxisConfig && xAxisConfig.type === 'category') {
-        this.fillXAxisData(config as GenericObject, data, fields);
+        this.fillXAxisData(config, data, fields);
       }
 
       return config;
@@ -952,7 +981,7 @@ export class DataVisualizationService {
     const xField = fields[0];
     const yField = fields.length > 1 ? fields[1] : fields[0];
 
-    (serie as unknown as GenericObject).data = data.map(item => [item[xField], item[yField]]);
+    (serie as ExtendedChartConfig).data = data.map(item => [item[xField], item[yField]]);
   }
 
   /**
@@ -973,7 +1002,7 @@ export class DataVisualizationService {
    */
   private fillHeatmapData(serie: object, data: object[], fields: string[]): void {
     // 简化热力图数据填充
-    (serie as unknown as GenericObject).data = data.map((item, index) => [
+    (serie as ExtendedChartConfig).data = data.map((item, index) => [
       index % 10,  // x坐标
       Math.floor(index / 10),  // y坐标
       item[fields[0]] || Math.random() * 100  // 数值
@@ -986,14 +1015,17 @@ export class DataVisualizationService {
   private fillXAxisData(config: object, data: object[], fields: string[]): void {
     const xField = fields[0];
     const uniqueValues = new Set<string>();
-    data.forEach(item => {
-      const value = item[xField];
+    data.forEach((item: object) => {
+      const itemObj = item as Record<string, Object>;
+      const value = itemObj[xField];
       if (value !== null && value !== undefined) {
         uniqueValues.add(String(value));
       }
     });
-    const xAxisConfig2 = (config as unknown as GenericObject).xAxis as GenericObject;
-    xAxisConfig2.data = Array.from(uniqueValues);
+    const xAxisConfig2 = (config as ExtendedChartConfig).xAxis as AxisConfig;
+    if (xAxisConfig2) {
+      xAxisConfig2.data = Array.from(uniqueValues);
+    }
   }
 
   /**
@@ -1003,7 +1035,7 @@ export class DataVisualizationService {
     const xField = categoricalFields.length > 0 ? categoricalFields[0].name : parsedData.headers[0];
     const yField = numericalFields.length > 0 ? numericalFields[0].name : parsedData.headers[parsedData.headers.length - 1];
 
-    (config as unknown as GenericObject).xAxis = {
+    (config as ExtendedChartConfig).xAxis = {
       type: 'category',
       data: parsedData.data.map(item => String(item[xField])),
       axisLabel: {
@@ -1011,14 +1043,14 @@ export class DataVisualizationService {
         rotate: 45
       } as AxisLabelStyle
     } as AxisConfig;
-    (config as unknown as GenericObject).yAxis = {
+    (config as ExtendedChartConfig).yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
       } as AxisLabelStyle
     } as AxisConfig;
 
-    (config as unknown as GenericObject).series = [{
+    (config as ExtendedChartConfig).series = [{
       type: 'bar',
       name: yField,
       data: parsedData.data.map(item => Number(item[yField])),
@@ -1035,7 +1067,7 @@ export class DataVisualizationService {
     const xField = temporalFields.length > 0 ? temporalFields[0].name : (categoricalFields.length > 0 ? categoricalFields[0].name : parsedData.headers[0]);
     const yField = numericalFields.length > 0 ? numericalFields[0].name : parsedData.headers[parsedData.headers.length - 1];
 
-    (config as unknown as GenericObject).xAxis = {
+    (config as ExtendedChartConfig).xAxis = {
       type: 'category',
       data: parsedData.data.map(item => String(item[xField])),
       axisLabel: {
@@ -1043,14 +1075,14 @@ export class DataVisualizationService {
         rotate: 45
       } as AxisLabelStyle
     } as AxisConfig;
-    (config as unknown as GenericObject).yAxis = {
+    (config as ExtendedChartConfig).yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
       } as AxisLabelStyle
     } as AxisConfig;
 
-    (config as unknown as GenericObject).series = [{
+    (config as ExtendedChartConfig).series = [{
       type: 'line',
       name: yField,
       data: parsedData.data.map(item => Number(item[yField])),
@@ -1071,20 +1103,20 @@ export class DataVisualizationService {
     const xField = numericalFields.length >= 2 ? numericalFields[1].name : (categoricalFields.length > 0 ? categoricalFields[0].name : parsedData.headers[0]);
     const yField = numericalFields.length >= 1 ? numericalFields[0].name : parsedData.headers[parsedData.headers.length - 1];
 
-    (config as unknown as GenericObject).xAxis = {
+    (config as ExtendedChartConfig).xAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
       } as AxisLabelStyle
     } as AxisConfig;
-    (config as unknown as GenericObject).yAxis = {
+    (config as ExtendedChartConfig).yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
       } as AxisLabelStyle
     } as AxisConfig;
 
-    (config as unknown as GenericObject).series = [{
+    (config as ExtendedChartConfig).series = [{
       type: 'scatter',
       name: `${xField} vs ${yField}`,
       data: parsedData.data.map(item => [Number(item[xField]), Number(item[yField])]),
@@ -1098,7 +1130,7 @@ export class DataVisualizationService {
    * 从ParsedData配置饼图
    */
   private configurePieChartFromParsedData(config: ChartConfig, parsedData: ParsedData, numericalFields: FieldInfo[], categoricalFields: FieldInfo[]): void {
-    const configObj = config as GenericObject;
+    const configObj = config as ExtendedChartConfig;
     configObj.xAxis = undefined;
     configObj.yAxis = undefined;
     configObj.grid = undefined;
@@ -1106,7 +1138,7 @@ export class DataVisualizationService {
     const nameField = categoricalFields.length > 0 ? categoricalFields[0].name : parsedData.headers[0];
     const valueField = numericalFields.length > 0 ? numericalFields[0].name : parsedData.headers[parsedData.headers.length - 1];
 
-    (config as unknown as GenericObject).series = [{
+    (config as ExtendedChartConfig).series = [{
       type: 'pie',
       radius: '60%',
       center: ['50%', '50%'],
@@ -1131,8 +1163,8 @@ export class DataVisualizationService {
     this.configureLineChartFromParsedData(config, parsedData, numericalFields, categoricalFields, temporalFields);
 
     if (config.series && Array.isArray(config.series)) {
-      const seriesArray = (config as unknown as GenericObject).series as GenericObject[];
-      seriesArray.forEach((serie: GenericObject) => {
+      const seriesArray = (config as ExtendedChartConfig).series as SeriesConfig[];
+      seriesArray.forEach((serie: SeriesConfig) => {
         serie.areaStyle = {
           opacity: 0.3
         } as AreaStyle;
@@ -1166,27 +1198,27 @@ export class DataVisualizationService {
     const yValues = Array.from(yValueSet);
 
     // 定义X轴配置
-    const xAxisConfig: GenericObject = {
+    const xAxisConfig: AxisConfig = {
       type: 'category',
       data: xValues,
       axisLabel: {
         color: '#ffffff',
         rotate: 45
-      }
+      } as AxisLabelStyle
     };
-    (config as unknown as GenericObject).xAxis = xAxisConfig;
+    (config as ExtendedChartConfig).xAxis = xAxisConfig;
     // 定义Y轴配置
-    const yAxisConfig: GenericObject = {
+    const yAxisConfig: AxisConfig = {
       type: 'category',
       data: yValues,
       axisLabel: {
         color: '#ffffff'
       } as AxisLabelStyle
     };
-    (config as unknown as GenericObject).yAxis = yAxisConfig;
+    (config as ExtendedChartConfig).yAxis = yAxisConfig;
 
     // 定义视觉映射配置
-    const visualMapConfig: GenericObject = {
+    const visualMapConfig: VisualMapConfig = {
       min: 0,
       max: 100,
       calculable: true,
@@ -1195,21 +1227,22 @@ export class DataVisualizationService {
       bottom: '15%',
       textStyle: {
         color: '#ffffff'
-      }
+      } as TextStyleWithColor
     };
-    (config as unknown as GenericObject).visualMap = visualMapConfig;
+    (config as ExtendedChartConfig).visualMap = visualMapConfig;
 
     // 构建热力图数据
     const heatmapData: number[][] = [];
-    parsedData.data.forEach(item => {
-      const xIndex = xValues.indexOf(item[xField]);
-      const yIndex = yValues.indexOf(item[yField]);
-      const value = item[colorField] || 0;
+    parsedData.data.forEach((item: object) => {
+      const itemObj = item as Record<string, Object>;
+      const xIndex = xValues.indexOf(String(itemObj[xField]));
+      const yIndex = yValues.indexOf(String(itemObj[yField]));
+      const value = Number(itemObj[colorField]) || 0;
       heatmapData.push([xIndex, yIndex, value]);
     });
 
     // 定义热力图系列配置
-    const heatmapSeries = {
+    const heatmapSeries: HeatmapSeriesConfig = {
       type: 'heatmap',
       data: heatmapData,
       emphasis: {
@@ -1218,9 +1251,9 @@ export class DataVisualizationService {
           shadowColor: 'rgba(0, 0, 0, 0.5)'
         }
       }
-    } as SeriesConfig;
+    };
 
-    (config as unknown as GenericObject).series = [heatmapSeries];
+    (config as ExtendedChartConfig).series = [heatmapSeries];
   }
 }
 

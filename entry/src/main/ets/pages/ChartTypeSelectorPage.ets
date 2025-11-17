@@ -6,7 +6,9 @@
 
 import router from '@ohos.router';
 import { getOriginalData, setChartOption } from './ChartPage';
-import { generateChart, ChartConfig, UserData, CSVData } from '../utils/aiService';
+import { generateChartLocal, generateChartFromParsedDataLocal, ChartConfig, UserData, CSVData } from '../utils/aiService';
+import { dataVisualizationService, ChartType as LocalChartType } from '../utils/dataVisualizationService';
+import { ParsedData } from '../utils/fileDataParser';
 
 // 辅助函数：安全地访问UserData的data属性
 function getDataFromUserData(userData: UserData): object[] | null {
@@ -151,8 +153,19 @@ export struct ChartTypeSelectorPage {
         chartType: this.selectedType
       } as EnhancedUserData;
 
-      // 调用AI服务生成图表配置
-      const chartConfig: ChartConfig = await generateChart(userData);
+      // 使用本地服务生成图表配置（无需API调用）
+      let chartConfig: ChartConfig;
+
+      // 检查是否有ParsedData可用
+      const params = router.getParams() as Record<string, object>;
+      if (params && params.parsedData) {
+        const parsedData = params.parsedData as ParsedData;
+        // 将选择类型转换为本地ChartType枚举
+        const localChartType = this.mapToLocalChartType(this.selectedType);
+        chartConfig = await generateChartFromParsedDataLocal(parsedData, localChartType);
+      } else {
+        chartConfig = await generateChartLocal(userData);
+      }
       console.info('[ChartTypeSelectorPage] 图表配置生成成功');
 
       // 设置图表配置
@@ -183,6 +196,34 @@ export struct ChartTypeSelectorPage {
    */
   goBack(): void {
     router.back();
+  }
+
+  /**
+   * 将字符串类型映射为本地ChartType枚举
+   */
+  private mapToLocalChartType(typeString: string): LocalChartType {
+    switch (typeString) {
+      case 'bar':
+      case '柱状图':
+        return LocalChartType.BAR;
+      case 'line':
+      case '折线图':
+        return LocalChartType.LINE;
+      case 'scatter':
+      case '散点图':
+        return LocalChartType.SCATTER;
+      case 'pie':
+      case '饼图':
+        return LocalChartType.PIE;
+      case 'area':
+      case '面积图':
+        return LocalChartType.AREA;
+      case 'heatmap':
+      case '热力图':
+        return LocalChartType.HEATMAP;
+      default:
+        return LocalChartType.BAR; // 默认返回条形图
+    }
   }
 
   /**

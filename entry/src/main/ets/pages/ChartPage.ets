@@ -1,5 +1,5 @@
 import router from '@ohos.router';
-import { ChartConfig, UserData, generateChart, CSVData } from '../utils/aiService';
+import { ChartConfig, UserData, generateChart, generateChartLocal, generateChartFromParsedDataLocal, getSupportedChartTypes, CSVData } from '../utils/aiService';
 import { ParsedData } from '../utils/fileDataParser';
 import { dataVisualizationService, ChartType } from '../utils/dataVisualizationService';
 import webview from '@ohos.web.webview';
@@ -806,8 +806,8 @@ export struct ChartPage {
         userData = enhancedUserData;
       }
 
-      // 调用AI服务重新生成图表配置
-      const newChartConfig: ChartConfig = await generateChart(userData);
+      // 使用本地服务生成图表配置（无需API调用）
+      const newChartConfig: ChartConfig = await generateChartLocal(userData);
       console.info('[ChartPage] 新图表配置生成成功');
 
       // 更新全局配置
