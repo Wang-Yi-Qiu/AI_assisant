@@ -9,6 +9,12 @@ import { ParsedData } from './fileDataParser';
 
 // 通用对象类型，用于快速修复类型错误
 type GenericObject = Record<string, Object>;
+type QuickFix = GenericObject; // 快速修复类型
+
+// 通用对象接口，用于修复所有对象字面量
+export interface UniversalObject {
+  [key: string]: Object | string | number | boolean | undefined;
+}
 
 // 图表类型枚举
 export enum ChartType {
@@ -116,6 +122,12 @@ export interface SeriesConfig {
   smooth?: boolean;
   fillArea?: boolean;
   areaStyle?: AreaStyle;
+  radius?: string;
+  stack?: string;
+  showSymbol?: boolean;
+  symbolSize?: number;
+  color?: string;
+  roseType?: string;
 }
 
 export interface VisualMapConfig {
@@ -738,15 +750,16 @@ export class DataVisualizationService {
    * 配置饼图
    */
   private configurePieChart(config: ChartConfig, userData: UserData, numericalFields: FieldInfo[], categoricalFields: FieldInfo[]): void {
-    delete (config as GenericObject).xAxis;
-    delete (config as GenericObject).yAxis;
-    delete (config as GenericObject).grid;
+    const configObj = config as GenericObject;
+    configObj.xAxis = undefined;
+    configObj.yAxis = undefined;
+    configObj.grid = undefined;
 
     (config as GenericObject).series = [{
       type: 'pie',
       radius: '50%',
       data: []
-    }];
+    } as SeriesConfig];
   }
 
   /**
@@ -756,12 +769,12 @@ export class DataVisualizationService {
     this.configureLineChart(config, userData, numericalFields, categoricalFields, temporalFields);
 
     if (config.series && Array.isArray(config.series)) {
-      const seriesArray = (config as GenericObject).series as unknown as GenericObject[];
+      const seriesArray = (config as GenericObject).series as GenericObject[];
       seriesArray.forEach((serie: GenericObject) => {
         serie.type = 'line';
         serie.areaStyle = {
           opacity: 0.3
-        };
+        } as AreaStyle;
         serie.stack = 'total';
       });
     }
@@ -1071,9 +1084,10 @@ export class DataVisualizationService {
    * 从ParsedData配置饼图
    */
   private configurePieChartFromParsedData(config: ChartConfig, parsedData: ParsedData, numericalFields: FieldInfo[], categoricalFields: FieldInfo[]): void {
-    delete (config as GenericObject).xAxis;
-    delete (config as GenericObject).yAxis;
-    delete (config as GenericObject).grid;
+    const configObj = config as GenericObject;
+    configObj.xAxis = undefined;
+    configObj.yAxis = undefined;
+    configObj.grid = undefined;
 
     const nameField = categoricalFields.length > 0 ? categoricalFields[0].name : parsedData.headers[0];
     const valueField = numericalFields.length > 0 ? numericalFields[0].name : parsedData.headers[parsedData.headers.length - 1];
@@ -1103,11 +1117,11 @@ export class DataVisualizationService {
     this.configureLineChartFromParsedData(config, parsedData, numericalFields, categoricalFields, temporalFields);
 
     if (config.series && Array.isArray(config.series)) {
-      const seriesArray = (config as GenericObject).series as unknown as GenericObject[];
+      const seriesArray = (config as GenericObject).series as GenericObject[];
       seriesArray.forEach((serie: GenericObject) => {
         serie.areaStyle = {
           opacity: 0.3
-        };
+        } as AreaStyle;
         serie.stack = 'total';
       });
     }
@@ -1192,7 +1206,7 @@ export class DataVisualizationService {
       }
     };
 
-    (config as GenericObject).series = [heatmapSeries];
+    (config as GenericObject).series = [heatmapSeries as SeriesConfig];
   }
 }
 
