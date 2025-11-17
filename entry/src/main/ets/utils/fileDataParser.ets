@@ -64,7 +64,7 @@ export class FileDataParser {
       return parsedData;
     } catch (error) {
       console.error('[FileDataParser] 文件选择和解析失败:', error);
-      throw error;
+      throw error instanceof Error ? error : new Error(String(error));
     }
   }
 
@@ -120,7 +120,7 @@ export class FileDataParser {
       return parsedData;
     } catch (error) {
       console.error('[FileDataParser] 文件解析失败:', error);
-      throw error;
+      throw error instanceof Error ? error : new Error(String(error));
     }
   }
 
@@ -331,9 +331,12 @@ export class FileDataParser {
    */
   public getDataPreview(parsedData: ParsedData, maxRows: number = 5): ParsedData {
     return {
-      ...parsedData,
+      headers: parsedData.headers,
       data: parsedData.data.slice(0, maxRows),
-      rowCount: Math.min(parsedData.rowCount, maxRows)
+      fileName: parsedData.fileName,
+      fileType: parsedData.fileType,
+      rowCount: Math.min(parsedData.rowCount, maxRows),
+      columnCount: parsedData.columnCount
     };
   }
 }

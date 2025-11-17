@@ -5,6 +5,9 @@
  */
 
 import { ChartConfig, UserData, EChartsTitle, EChartsLegend, EChartsGrid, EChartsTooltip } from './aiService';
+
+// 通用对象类型，用于快速修复类型错误
+type GenericObject = GenericObject;
 import { ParsedData } from './fileDataParser';
 
 // 图表类型枚举
@@ -53,24 +56,65 @@ export interface ChartTypeInfo {
 // 图表配置相关接口 - 使用aiService中的ECharts接口
 export interface ChartTooltipConfig extends EChartsTooltip {
   backgroundColor?: string;
-  textStyle?: {
-    color: string;
-  };
+  textStyle?: TextStyle;
 }
 
 export interface ChartLegendConfig extends EChartsLegend {
-  textStyle?: {
-    color: string;
-  };
+  textStyle?: TextStyle;
+}
+
+export interface TextStyle {
+  color: string;
 }
 
 export interface ChartGridConfig extends EChartsGrid {
 }
 
 export interface ChartTitleConfig extends EChartsTitle {
-  textStyle?: {
+  textStyle?: TitleTextStyle;
+}
+
+export interface TitleTextStyle {
+  color: string;
+  fontSize: number;
+}
+
+// ECharts配置对象接口
+export interface AxisConfig {
+  type: string;
+  data?: string[];
+  axisLabel?: {
     color: string;
-    fontSize: number;
+  };
+}
+
+export interface SeriesConfig {
+  type: string;
+  data?: Object[];
+  name?: string;
+  itemStyle?: {
+    color?: string;
+  };
+  showSymbol?: boolean;
+  smooth?: boolean;
+  fillArea?: boolean;
+  areaStyle?: {
+    opacity?: number;
+  };
+}
+
+export interface VisualMapConfig {
+  min?: number;
+  max?: number;
+  calculable?: boolean;
+  orient?: string;
+  left?: string;
+  bottom?: string;
+  inRange?: {
+    color?: string[];
+  };
+  textStyle?: {
+    color?: string;
   };
 }
 
@@ -116,7 +160,7 @@ export class DataVisualizationService {
 
     try {
       // 尝试解析为CSVData格式
-      const csvData = userData as unknown as Record<string, Object>;
+      const csvData = userData as GenericObject;
       let data: Object[] = [];
 
       if (csvData.data && Array.isArray(csvData.data)) {
@@ -136,7 +180,7 @@ export class DataVisualizationService {
 
       for (const field of fields) {
         const values = data.map(row => {
-          const rowRecord = row as Record<string, Object>;
+          const rowRecord = row as GenericObject;
           return rowRecord[field];
         }).filter(val => val !== null && val !== undefined);
 
@@ -182,7 +226,7 @@ export class DataVisualizationService {
 
       for (const field of fields) {
         const values = data.map(row => {
-          const rowRecord = row as Record<string, Object>;
+          const rowRecord = row as GenericObject;
           return rowRecord[field];
         }).filter(val => val !== null && val !== undefined);
 
@@ -606,24 +650,24 @@ export class DataVisualizationService {
     const xField = categoricalFields.length > 0 ? categoricalFields[0].name : 'category';
     const yField = numericalFields.length > 0 ? numericalFields[0].name : 'value';
 
-    (config as unknown as Record<string, Object>).xAxis = {
+    (config as GenericObject).xAxis = {
       type: 'category',
       data: [],
       axisLabel: {
         color: '#ffffff'
-      }
-    };
-    (config as unknown as Record<string, Object>).yAxis = {
+      } as GenericObject
+    } as GenericObject;
+    (config as GenericObject).yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      }
-    };
+      } as GenericObject
+    } as GenericObject;
 
-    (config as unknown as Record<string, Object>).series = [{
+    (config as GenericObject).series = [{
       type: 'bar',
       data: []
-    }];
+    } as GenericObject];
   }
 
   /**
@@ -633,24 +677,24 @@ export class DataVisualizationService {
     const xField = temporalFields.length > 0 ? temporalFields[0].name : (categoricalFields.length > 0 ? categoricalFields[0].name : 'x');
     const yField = numericalFields.length > 0 ? numericalFields[0].name : 'value';
 
-    (config as unknown as Record<string, Object>).xAxis = {
+    (config as GenericObject).xAxis = {
       type: 'category',
       data: [],
       axisLabel: {
         color: '#ffffff'
-      }
-    };
-    (config as unknown as Record<string, Object>).yAxis = {
+      } as GenericObject
+    } as GenericObject;
+    (config as GenericObject).yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      }
-    };
+      } as GenericObject
+    } as GenericObject;
 
-    (config as unknown as Record<string, Object>).series = [{
+    (config as GenericObject).series = [{
       type: 'line',
       data: []
-    }];
+    } as GenericObject];
   }
 
   /**
@@ -660,34 +704,34 @@ export class DataVisualizationService {
     const xField = numericalFields.length >= 2 ? numericalFields[1].name : (categoricalFields.length > 0 ? categoricalFields[0].name : 'x');
     const yField = numericalFields.length >= 1 ? numericalFields[0].name : 'y';
 
-    (config as unknown as Record<string, Object>).xAxis = {
+    (config as GenericObject).xAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      }
+      } as GenericObject
     };
-    (config as unknown as Record<string, Object>).yAxis = {
+    (config as GenericObject).yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      }
-    };
+      } as GenericObject
+    } as GenericObject;
 
-    (config as unknown as Record<string, Object>).series = [{
+    (config as GenericObject).series = [{
       type: 'scatter',
       data: []
-    }];
+    } as GenericObject];
   }
 
   /**
    * 配置饼图
    */
   private configurePieChart(config: ChartConfig, userData: UserData, numericalFields: FieldInfo[], categoricalFields: FieldInfo[]): void {
-    delete (config as unknown as Record<string, Object>).xAxis;
-    delete (config as unknown as Record<string, Object>).yAxis;
-    delete (config as unknown as Record<string, Object>).grid;
+    delete (config as GenericObject).xAxis;
+    delete (config as GenericObject).yAxis;
+    delete (config as GenericObject).grid;
 
-    (config as unknown as Record<string, Object>).series = [{
+    (config as GenericObject).series = [{
       type: 'pie',
       radius: '50%',
       data: []
@@ -701,8 +745,8 @@ export class DataVisualizationService {
     this.configureLineChart(config, userData, numericalFields, categoricalFields, temporalFields);
 
     if (config.series && Array.isArray(config.series)) {
-      const seriesArray = (config as unknown as Record<string, Object>).series as unknown as Record<string, Object>[];
-      seriesArray.forEach((serie: Record<string, Object>) => {
+      const seriesArray = (config as GenericObject).series as unknown as GenericObject[];
+      seriesArray.forEach((serie: GenericObject) => {
         serie.type = 'line';
         serie.areaStyle = {
           opacity: 0.3
@@ -725,22 +769,22 @@ export class DataVisualizationService {
     const yField = categoricalFields[1].name || (numericalFields[0].name);
     const colorField = numericalFields[0].name;
 
-    (config as unknown as Record<string, Object>).xAxis = {
+    (config as GenericObject).xAxis = {
       type: 'category',
       data: [],
       axisLabel: {
         color: '#ffffff'
-      }
-    };
-    (config as unknown as Record<string, Object>).yAxis = {
+      } as GenericObject
+    } as GenericObject;
+    (config as GenericObject).yAxis = {
       type: 'category',
       data: [],
       axisLabel: {
         color: '#ffffff'
-      }
+      } as GenericObject
     };
 
-    (config as unknown as Record<string, Object>).visualMap = {
+    (config as GenericObject).visualMap = {
       min: 0,
       max: 100,
       calculable: true,
@@ -752,7 +796,7 @@ export class DataVisualizationService {
       }
     };
 
-    (config as unknown as Record<string, Object>).series = [{
+    (config as GenericObject).series = [{
       type: 'heatmap',
       data: []
     }];
@@ -761,14 +805,14 @@ export class DataVisualizationService {
   /**
    * 转换为ECharts配置（包含实际数据）
    */
-  public convertToEChartsConfig(config: Record<string, Object>, userData: UserData): Record<string, Object> {
+  public convertToEChartsConfig(config: GenericObject, userData: UserData): GenericObject {
     try {
       // 尝试解析为CSVData格式
       let data: object[] = [];
 
       // 检查userData是否有data属性
       if (userData && typeof userData === 'object' && 'data' in userData) {
-        const csvData = userData as unknown as Record<string, Object>;
+        const csvData = userData as GenericObject;
         if (csvData.data && Array.isArray(csvData.data)) {
           data = csvData.data;
         }
@@ -787,7 +831,7 @@ export class DataVisualizationService {
 
       // 根据图表类型填充数据
       if (config.series && Array.isArray(config.series)) {
-        config.series.forEach((serie: any) => {
+        config.series.forEach((serie: GenericObject) => {
           switch (serie.type) {
             case 'bar':
             case 'line':
@@ -807,9 +851,9 @@ export class DataVisualizationService {
       }
 
       // 填充坐标轴数据
-      const xAxisConfig = (config as unknown as Record<string, Object>).xAxis as Record<string, Object>;
+      const xAxisConfig = (config as GenericObject).xAxis as GenericObject;
       if (xAxisConfig && xAxisConfig.type === 'category') {
-        this.fillXAxisData(config as unknown as Record<string, Object>, data, fields);
+        this.fillXAxisData(config as unknown as GenericObject, data, fields);
       }
 
       return config;
@@ -829,33 +873,35 @@ export class DataVisualizationService {
     // 如果有分类字段，分组数据
     if (fields.length > 2) {
       const categoryField = fields[2];
-      const categories = [...new Set(data.map(item => {
-        const dataItem = item as Record<string, Object>;
-        return dataItem[categoryField];
-      }))];
+      const categorySet = new Set<string>();
+      for (const item of data) {
+        const dataItem = item as GenericObject;
+        categorySet.add(String(dataItem[categoryField]));
+      }
+      const categories = Array.from(categorySet);
 
-      (serie as Record<string, Object>).data = categories.map(category => {
+      (serie as GenericObject).data = categories.map(category => {
         const categoryData = data.filter(item => {
-          const dataItem = item as Record<string, Object>;
+          const dataItem = item as GenericObject;
           return dataItem[categoryField] === category;
         });
         return {
           name: category,
-          type: (serie as Record<string, Object>).type,
+          type: (serie as GenericObject).type,
           data: categoryData.map(item => {
-            const dataItem = item as Record<string, Object>;
+            const dataItem = item as GenericObject;
             return dataItem[yField];
           })
         };
       });
     } else {
-      (serie as Record<string, Object>).data = data.map(item => {
-        const dataItem = item as Record<string, Object>;
+      (serie as GenericObject).data = data.map(item => {
+        const dataItem = item as GenericObject;
         return dataItem[yField];
       });
     }
 
-    const serieRecord = serie as Record<string, Object>;
+    const serieRecord = serie as GenericObject;
     if (serieRecord.data && Array.isArray(serieRecord.data) && serieRecord.data.length > 0 && typeof serieRecord.data[0] === 'object') {
       // 数据保持不变
     }
@@ -868,7 +914,7 @@ export class DataVisualizationService {
     const xField = fields[0];
     const yField = fields.length > 1 ? fields[1] : fields[0];
 
-    (serie as unknown as Record<string, Object>).data = data.map(item => [item[xField], item[yField]]);
+    (serie as unknown as GenericObject).data = data.map(item => [item[xField], item[yField]]);
   }
 
   /**
@@ -878,7 +924,7 @@ export class DataVisualizationService {
     const nameField = fields[0];
     const valueField = fields.length > 1 ? fields[1] : fields[0];
 
-    (serie as unknown as Record<string, Object>).data = data.map(item => ({
+    (serie as unknown as GenericObject).data = data.map(item => ({
       name: item[nameField],
       value: item[valueField]
     }));
@@ -889,7 +935,7 @@ export class DataVisualizationService {
    */
   private fillHeatmapData(serie: object, data: object[], fields: string[]): void {
     // 简化热力图数据填充
-    (serie as unknown as Record<string, Object>).data = data.map((item, index) => [
+    (serie as unknown as GenericObject).data = data.map((item, index) => [
       index % 10,  // x坐标
       Math.floor(index / 10),  // y坐标
       item[fields[0]] || Math.random() * 100  // 数值
@@ -908,7 +954,7 @@ export class DataVisualizationService {
         uniqueValues.add(String(value));
       }
     });
-    const xAxisConfig2 = (config as unknown as Record<string, Object>).xAxis as Record<string, Object>;
+    const xAxisConfig2 = (config as GenericObject).xAxis as GenericObject;
     xAxisConfig2.data = Array.from(uniqueValues);
   }
 
@@ -919,7 +965,7 @@ export class DataVisualizationService {
     const xField = categoricalFields.length > 0 ? categoricalFields[0].name : parsedData.headers[0];
     const yField = numericalFields.length > 0 ? numericalFields[0].name : parsedData.headers[parsedData.headers.length - 1];
 
-    (config as unknown as Record<string, Object>).xAxis = {
+    (config as GenericObject).xAxis = {
       type: 'category',
       data: parsedData.data.map(item => item[xField]),
       axisLabel: {
@@ -927,14 +973,14 @@ export class DataVisualizationService {
         rotate: 45
       }
     };
-    (config as unknown as Record<string, Object>).yAxis = {
+    (config as GenericObject).yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      }
-    };
+      } as GenericObject
+    } as GenericObject;
 
-    (config as unknown as Record<string, Object>).series = [{
+    (config as GenericObject).series = [{
       type: 'bar',
       name: yField,
       data: parsedData.data.map(item => item[yField]),
@@ -951,7 +997,7 @@ export class DataVisualizationService {
     const xField = temporalFields.length > 0 ? temporalFields[0].name : (categoricalFields.length > 0 ? categoricalFields[0].name : parsedData.headers[0]);
     const yField = numericalFields.length > 0 ? numericalFields[0].name : parsedData.headers[parsedData.headers.length - 1];
 
-    (config as unknown as Record<string, Object>).xAxis = {
+    (config as GenericObject).xAxis = {
       type: 'category',
       data: parsedData.data.map(item => item[xField]),
       axisLabel: {
@@ -959,14 +1005,14 @@ export class DataVisualizationService {
         rotate: 45
       }
     };
-    (config as unknown as Record<string, Object>).yAxis = {
+    (config as GenericObject).yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      }
-    };
+      } as GenericObject
+    } as GenericObject;
 
-    (config as unknown as Record<string, Object>).series = [{
+    (config as GenericObject).series = [{
       type: 'line',
       name: yField,
       data: parsedData.data.map(item => item[yField]),
@@ -987,20 +1033,20 @@ export class DataVisualizationService {
     const xField = numericalFields.length >= 2 ? numericalFields[1].name : (categoricalFields.length > 0 ? categoricalFields[0].name : parsedData.headers[0]);
     const yField = numericalFields.length >= 1 ? numericalFields[0].name : parsedData.headers[parsedData.headers.length - 1];
 
-    (config as unknown as Record<string, Object>).xAxis = {
+    (config as GenericObject).xAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      }
+      } as GenericObject
     };
-    (config as unknown as Record<string, Object>).yAxis = {
+    (config as GenericObject).yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      }
-    };
+      } as GenericObject
+    } as GenericObject;
 
-    (config as unknown as Record<string, Object>).series = [{
+    (config as GenericObject).series = [{
       type: 'scatter',
       name: `${xField} vs ${yField}`,
       data: parsedData.data.map(item => [item[xField], item[yField]]),
@@ -1014,14 +1060,14 @@ export class DataVisualizationService {
    * 从ParsedData配置饼图
    */
   private configurePieChartFromParsedData(config: ChartConfig, parsedData: ParsedData, numericalFields: FieldInfo[], categoricalFields: FieldInfo[]): void {
-    delete (config as unknown as Record<string, Object>).xAxis;
-    delete (config as unknown as Record<string, Object>).yAxis;
-    delete (config as unknown as Record<string, Object>).grid;
+    delete (config as GenericObject).xAxis;
+    delete (config as GenericObject).yAxis;
+    delete (config as GenericObject).grid;
 
     const nameField = categoricalFields.length > 0 ? categoricalFields[0].name : parsedData.headers[0];
     const valueField = numericalFields.length > 0 ? numericalFields[0].name : parsedData.headers[parsedData.headers.length - 1];
 
-    (config as unknown as Record<string, Object>).series = [{
+    (config as GenericObject).series = [{
       type: 'pie',
       radius: '60%',
       center: ['50%', '50%'],
@@ -1046,8 +1092,8 @@ export class DataVisualizationService {
     this.configureLineChartFromParsedData(config, parsedData, numericalFields, categoricalFields, temporalFields);
 
     if (config.series && Array.isArray(config.series)) {
-      const seriesArray = (config as unknown as Record<string, Object>).series as unknown as Record<string, Object>[];
-      seriesArray.forEach((serie: Record<string, Object>) => {
+      const seriesArray = (config as GenericObject).series as unknown as GenericObject[];
+      seriesArray.forEach((serie: GenericObject) => {
         serie.areaStyle = {
           opacity: 0.3
         };
@@ -1070,11 +1116,18 @@ export class DataVisualizationService {
     const colorField = numericalFields[0].name;
 
     // 获取唯一的X和Y值
-    const xValues = [...new Set(parsedData.data.map(item => item[xField]))];
-    const yValues = [...new Set(parsedData.data.map(item => item[yField]))];
+    const xValueSet = new Set<string>();
+    const yValueSet = new Set<string>();
+
+    for (const item of parsedData.data) {
+      xValueSet.add(String(item[xField]));
+      yValueSet.add(String(item[yField]));
+    }
+    const xValues = Array.from(xValueSet);
+    const yValues = Array.from(yValueSet);
 
     // 定义X轴配置
-    const xAxisConfig: Record<string, Object> = {
+    const xAxisConfig: GenericObject = {
       type: 'category',
       data: xValues,
       axisLabel: {
@@ -1082,19 +1135,19 @@ export class DataVisualizationService {
         rotate: 45
       }
     };
-    (config as unknown as Record<string, Object>).xAxis = xAxisConfig;
+    (config as GenericObject).xAxis = xAxisConfig;
     // 定义Y轴配置
-    const yAxisConfig: Record<string, Object> = {
+    const yAxisConfig: GenericObject = {
       type: 'category',
       data: yValues,
       axisLabel: {
         color: '#ffffff'
-      }
+      } as GenericObject
     };
-    (config as unknown as Record<string, Object>).yAxis = yAxisConfig;
+    (config as GenericObject).yAxis = yAxisConfig;
 
     // 定义视觉映射配置
-    const visualMapConfig: Record<string, Object> = {
+    const visualMapConfig: GenericObject = {
       min: 0,
       max: 100,
       calculable: true,
@@ -1105,7 +1158,7 @@ export class DataVisualizationService {
         color: '#ffffff'
       }
     };
-    (config as unknown as Record<string, Object>).visualMap = visualMapConfig;
+    (config as GenericObject).visualMap = visualMapConfig;
 
     // 构建热力图数据
     const heatmapData: number[][] = [];
@@ -1117,7 +1170,7 @@ export class DataVisualizationService {
     });
 
     // 定义热力图系列配置
-    const heatmapSeries: Record<string, Object> = {
+    const heatmapSeries: GenericObject = {
       type: 'heatmap',
       data: heatmapData,
       emphasis: {
@@ -1128,7 +1181,7 @@ export class DataVisualizationService {
       }
     };
 
-    (config as unknown as Record<string, Object>).series = [heatmapSeries];
+    (config as GenericObject).series = [heatmapSeries];
   }
 }
 
