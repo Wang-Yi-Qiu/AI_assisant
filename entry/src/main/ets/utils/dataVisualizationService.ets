@@ -43,6 +43,61 @@ export class ChartRecommendation {
   confidence: 'high' | 'medium' | 'low' = 'medium';
 }
 
+// 图表类型信息接口
+export interface ChartTypeInfo {
+  type: ChartType;
+  name: string;
+  description: string;
+}
+
+// 图表配置相关接口
+export interface ChartTooltipConfig {
+  trigger: string;
+  backgroundColor: string;
+  textStyle: {
+    color: string;
+  };
+}
+
+export interface ChartLegendConfig {
+  textStyle: {
+    color: string;
+  };
+}
+
+export interface ChartGridConfig {
+  left: string;
+  right: string;
+  bottom: string;
+  containLabel: boolean;
+}
+
+export interface ChartTitleConfig {
+  text: string;
+  textStyle: {
+    color: string;
+    fontSize: number;
+  };
+}
+
+export interface ChartBasicConfig {
+  title: string;
+  backgroundColor: string;
+  tooltip: ChartTooltipConfig;
+  legend: ChartLegendConfig;
+  grid: ChartGridConfig;
+  series: Object[];
+}
+
+export interface ChartAdvancedConfig {
+  title: ChartTitleConfig;
+  backgroundColor: string;
+  tooltip: ChartTooltipConfig;
+  legend: ChartLegendConfig;
+  grid: ChartGridConfig;
+  series: Object[];
+}
+
 /**
  * 数据可视化服务类
  */
@@ -68,7 +123,7 @@ export class DataVisualizationService {
     try {
       // 尝试解析为CSVData格式
       const csvData = userData as unknown as Record<string, Object>;
-      let data: any[] = [];
+      let data: Object[] = [];
 
       if (csvData.data && Array.isArray(csvData.data)) {
         data = csvData.data;
@@ -86,7 +141,10 @@ export class DataVisualizationService {
       const fields = Object.keys(data[0]);
 
       for (const field of fields) {
-        const values = data.map(row => row[field]).filter(val => val !== null && val !== undefined);
+        const values = data.map(row => {
+          const rowRecord = row as Record<string, Object>;
+          return rowRecord[field];
+        }).filter(val => val !== null && val !== undefined);
 
         const info = new FieldInfo();
         info.name = field;
@@ -129,7 +187,10 @@ export class DataVisualizationService {
       const fields = parsedData.headers;
 
       for (const field of fields) {
-        const values = data.map(row => row[field]).filter(val => val !== null && val !== undefined);
+        const values = data.map(row => {
+          const rowRecord = row as Record<string, Object>;
+          return rowRecord[field];
+        }).filter(val => val !== null && val !== undefined);
 
         const info = new FieldInfo();
         info.name = field;
@@ -159,7 +220,7 @@ export class DataVisualizationService {
   /**
    * 检测字段数据类型
    */
-  private detectDataType(values: any[]): DataType {
+  private detectDataType(values: Object[]): DataType {
     if (values.length === 0) {
       return DataType.CATEGORICAL;
     }
@@ -344,8 +405,8 @@ export class DataVisualizationService {
   /**
    * 获取支持的图表类型信息
    */
-  public getSupportedChartTypes(): Array<{ type: ChartType; name: string; description: string }> {
-    return [
+  public getSupportedChartTypes(): ChartTypeInfo[] {
+    const chartTypes: ChartTypeInfo[] = [
       { type: ChartType.BAR, name: '条形图', description: '适合比较不同类别的数值大小' },
       { type: ChartType.LINE, name: '折线图', description: '适合展示数据随时间的变化趋势' },
       { type: ChartType.SCATTER, name: '散点图', description: '适合展示两个变量之间的关系' },
@@ -353,6 +414,7 @@ export class DataVisualizationService {
       { type: ChartType.AREA, name: '面积图', description: '适合展示数据的累积变化' },
       { type: ChartType.HEATMAP, name: '热力图', description: '通过颜色深浅展示数据数值大小' }
     ];
+    return chartTypes;
   }
 
   /**
@@ -375,27 +437,33 @@ export class DataVisualizationService {
       }
     }
 
-    const config: any = {
+    const tooltipConfig: ChartTooltipConfig = {
+      trigger: 'item',
+      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+      textStyle: {
+        color: '#fff'
+      }
+    };
+
+    const legendConfig: ChartLegendConfig = {
+      textStyle: {
+        color: '#ffffff'
+      }
+    };
+
+    const gridConfig: ChartGridConfig = {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      containLabel: true
+    };
+
+    const config: ChartBasicConfig = {
       title: this.generateChartTitle(chartType),
       backgroundColor: '#1C1C1C',
-      tooltip: {
-        trigger: 'item',
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        textStyle: {
-          color: '#fff'
-        }
-      },
-      legend: {
-        textStyle: {
-          color: '#ffffff'
-        }
-      },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '3%',
-        containLabel: true
-      },
+      tooltip: tooltipConfig,
+      legend: legendConfig,
+      grid: gridConfig,
       series: []
     };
 
@@ -447,33 +515,41 @@ export class DataVisualizationService {
       }
     }
 
-    const config: any = {
-      title: {
-        text: `${this.generateChartTitle(chartType)} - ${parsedData.fileName}`,
-        textStyle: {
-          color: '#ffffff',
-          fontSize: 16
-        }
-      },
+    const titleConfig: ChartTitleConfig = {
+      text: `${this.generateChartTitle(chartType)} - ${parsedData.fileName}`,
+      textStyle: {
+        color: '#ffffff',
+        fontSize: 16
+      }
+    };
+
+    const tooltipConfig2: ChartTooltipConfig = {
+      trigger: 'item',
+      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+      textStyle: {
+        color: '#fff'
+      }
+    };
+
+    const legendConfig2: ChartLegendConfig = {
+      textStyle: {
+        color: '#ffffff'
+      }
+    };
+
+    const gridConfig2: ChartGridConfig = {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      containLabel: true
+    };
+
+    const config: ChartAdvancedConfig = {
+      title: titleConfig,
       backgroundColor: '#1C1C1C',
-      tooltip: {
-        trigger: 'item',
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        textStyle: {
-          color: '#fff'
-        }
-      },
-      legend: {
-        textStyle: {
-          color: '#ffffff'
-        }
-      },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '3%',
-        containLabel: true
-      },
+      tooltip: tooltipConfig2,
+      legend: legendConfig2,
+      grid: gridConfig2,
       series: []
     };
 

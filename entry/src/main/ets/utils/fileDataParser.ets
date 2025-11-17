@@ -18,6 +18,12 @@ export interface ParsedData {
   columnCount: number;
 }
 
+// 验证结果接口
+export interface ValidationResult {
+  isValid: boolean;
+  errors: string[];
+}
+
 // 解析错误类
 export class ParseError extends Error {
   constructor(message: string, public code: string = 'PARSE_ERROR') {
@@ -163,7 +169,7 @@ export class FileDataParser {
 
         // 如果行数据不为空
         if (values.some(val => val.trim() !== '')) {
-          const row: object = {};
+          const row: Record<string, Object> = {};
           headers.forEach((header, index) => {
             let value = values[index] || '';
 
@@ -288,7 +294,7 @@ export class FileDataParser {
   /**
    * 验证解析结果
    */
-  public validateParsedData(parsedData: ParsedData): { isValid: boolean; errors: string[] } {
+  public validateParsedData(parsedData: ParsedData): ValidationResult {
     const errors: string[] = [];
 
     // 检查是否有数据
@@ -313,10 +319,11 @@ export class FileDataParser {
       }
     }
 
-    return {
+    const result: ValidationResult = {
       isValid: errors.length === 0,
       errors
     };
+    return result;
   }
 
   /**
