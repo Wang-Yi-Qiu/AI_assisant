@@ -52,7 +52,7 @@ export interface ChartTypeInfo {
 
 // 图表配置相关接口
 export interface ChartTooltipConfig {
-  trigger: string;
+  trigger: 'item' | 'axis';
   backgroundColor: string;
   textStyle: {
     color: string;
@@ -574,11 +574,11 @@ export class DataVisualizationService {
         this.configureHeatmapChartFromParsedData(config, parsedData, numericalFields, categoricalFields);
         break;
       default:
-        this.configureBarChartFromParsedData(config, parsedData, numericalFields, categoricalFields);
+        this.configureBarChartFromParsedData(config as unknown as ChartConfig, parsedData, numericalFields, categoricalFields);
         break;
     }
 
-    return config;
+    return config as unknown as ChartConfig;
   }
 
   /**
