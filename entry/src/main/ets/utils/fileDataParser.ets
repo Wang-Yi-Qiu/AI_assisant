@@ -26,9 +26,12 @@ export interface ValidationResult {
 
 // 解析错误类
 export class ParseError extends Error {
-  constructor(message: string, public code: string = 'PARSE_ERROR') {
+  public code: string;
+
+  constructor(message: string, code: string = 'PARSE_ERROR') {
     super(message);
     this.name = 'ParseError';
+    this.code = code;
   }
 }
 

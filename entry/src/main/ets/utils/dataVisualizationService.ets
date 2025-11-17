@@ -5,10 +5,10 @@
  */
 
 import { ChartConfig, UserData, EChartsTitle, EChartsLegend, EChartsGrid, EChartsTooltip } from './aiService';
+import { ParsedData } from './fileDataParser';
 
 // 通用对象类型，用于快速修复类型错误
-type GenericObject = GenericObject;
-import { ParsedData } from './fileDataParser';
+type GenericObject = Record<string, Object>;
 
 // 图表类型枚举
 export enum ChartType {
@@ -79,28 +79,43 @@ export interface TitleTextStyle {
   fontSize: number;
 }
 
+// 内联对象类型接口
+export interface AxisLabelStyle {
+  color: string;
+}
+
+export interface ItemStyle {
+  color?: string;
+}
+
+export interface AreaStyle {
+  opacity?: number;
+}
+
+export interface InRange {
+  color?: string[];
+}
+
+export interface TextStyleWithColor {
+  color?: string;
+}
+
 // ECharts配置对象接口
 export interface AxisConfig {
   type: string;
   data?: string[];
-  axisLabel?: {
-    color: string;
-  };
+  axisLabel?: AxisLabelStyle;
 }
 
 export interface SeriesConfig {
   type: string;
   data?: Object[];
   name?: string;
-  itemStyle?: {
-    color?: string;
-  };
+  itemStyle?: ItemStyle;
   showSymbol?: boolean;
   smooth?: boolean;
   fillArea?: boolean;
-  areaStyle?: {
-    opacity?: number;
-  };
+  areaStyle?: AreaStyle;
 }
 
 export interface VisualMapConfig {
@@ -110,12 +125,8 @@ export interface VisualMapConfig {
   orient?: string;
   left?: string;
   bottom?: string;
-  inRange?: {
-    color?: string[];
-  };
-  textStyle?: {
-    color?: string;
-  };
+  inRange?: InRange;
+  textStyle?: TextStyleWithColor;
 }
 
 export interface ChartBasicConfig {
@@ -655,19 +666,19 @@ export class DataVisualizationService {
       data: [],
       axisLabel: {
         color: '#ffffff'
-      } as GenericObject
-    } as GenericObject;
+      } as AxisLabelStyle
+    } as AxisConfig;
     (config as GenericObject).yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      } as GenericObject
-    } as GenericObject;
+      } as AxisLabelStyle
+    } as AxisConfig;
 
     (config as GenericObject).series = [{
       type: 'bar',
       data: []
-    } as GenericObject];
+    } as SeriesConfig];
   }
 
   /**
@@ -682,19 +693,19 @@ export class DataVisualizationService {
       data: [],
       axisLabel: {
         color: '#ffffff'
-      } as GenericObject
-    } as GenericObject;
+      } as AxisLabelStyle
+    } as AxisConfig;
     (config as GenericObject).yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      } as GenericObject
-    } as GenericObject;
+      } as AxisLabelStyle
+    } as AxisConfig;
 
     (config as GenericObject).series = [{
       type: 'line',
       data: []
-    } as GenericObject];
+    } as SeriesConfig];
   }
 
   /**
@@ -708,19 +719,19 @@ export class DataVisualizationService {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      } as GenericObject
-    };
+      } as AxisLabelStyle
+    } as AxisConfig;
     (config as GenericObject).yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      } as GenericObject
-    } as GenericObject;
+      } as AxisLabelStyle
+    } as AxisConfig;
 
     (config as GenericObject).series = [{
       type: 'scatter',
       data: []
-    } as GenericObject];
+    } as SeriesConfig];
   }
 
   /**
@@ -774,14 +785,14 @@ export class DataVisualizationService {
       data: [],
       axisLabel: {
         color: '#ffffff'
-      } as GenericObject
-    } as GenericObject;
+      } as AxisLabelStyle
+    } as AxisConfig;
     (config as GenericObject).yAxis = {
       type: 'category',
       data: [],
       axisLabel: {
         color: '#ffffff'
-      } as GenericObject
+      } as AxisLabelStyle
     };
 
     (config as GenericObject).visualMap = {
@@ -793,8 +804,8 @@ export class DataVisualizationService {
       bottom: '15%',
       textStyle: {
         color: '#ffffff'
-      }
-    };
+      } as TextStyleWithColor
+    } as VisualMapConfig;
 
     (config as GenericObject).series = [{
       type: 'heatmap',
@@ -977,8 +988,8 @@ export class DataVisualizationService {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      } as GenericObject
-    } as GenericObject;
+      } as AxisLabelStyle
+    } as AxisConfig;
 
     (config as GenericObject).series = [{
       type: 'bar',
@@ -1009,8 +1020,8 @@ export class DataVisualizationService {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      } as GenericObject
-    } as GenericObject;
+      } as AxisLabelStyle
+    } as AxisConfig;
 
     (config as GenericObject).series = [{
       type: 'line',
@@ -1037,14 +1048,14 @@ export class DataVisualizationService {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      } as GenericObject
-    };
+      } as AxisLabelStyle
+    } as AxisConfig;
     (config as GenericObject).yAxis = {
       type: 'value',
       axisLabel: {
         color: '#ffffff'
-      } as GenericObject
-    } as GenericObject;
+      } as AxisLabelStyle
+    } as AxisConfig;
 
     (config as GenericObject).series = [{
       type: 'scatter',
@@ -1142,7 +1153,7 @@ export class DataVisualizationService {
       data: yValues,
       axisLabel: {
         color: '#ffffff'
-      } as GenericObject
+      } as AxisLabelStyle
     };
     (config as GenericObject).yAxis = yAxisConfig;
 
