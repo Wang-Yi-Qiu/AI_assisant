@@ -8,7 +8,7 @@ import { ChartConfig, UserData, EChartsTitle, EChartsLegend, EChartsGrid, EChart
 import { ParsedData } from './fileDataParser';
 
 // 通用对象类型，用于快速修复类型错误
-type GenericObject = Record<string, Object>;
+type GenericObject = Record<string, Object | undefined>;
 type QuickFix = GenericObject; // 快速修复类型
 
 // 通用对象接口，用于修复所有对象字面量
@@ -949,8 +949,8 @@ export class DataVisualizationService {
     const valueField = fields.length > 1 ? fields[1] : fields[0];
 
     (serie as GenericObject).data = data.map(item => ({
-      name: item[nameField],
-      value: item[valueField]
+      name: String(item[nameField]),
+      value: Number(item[valueField])
     } as UniversalObject));
   }
 
@@ -991,12 +991,12 @@ export class DataVisualizationService {
 
     (config as GenericObject).xAxis = {
       type: 'category',
-      data: parsedData.data.map(item => item[xField]),
+      data: parsedData.data.map(item => String(item[xField])),
       axisLabel: {
         color: '#ffffff',
         rotate: 45
-      }
-    };
+      } as AxisLabelStyle
+    } as AxisConfig;
     (config as GenericObject).yAxis = {
       type: 'value',
       axisLabel: {
@@ -1007,11 +1007,11 @@ export class DataVisualizationService {
     (config as GenericObject).series = [{
       type: 'bar',
       name: yField,
-      data: parsedData.data.map(item => item[yField]),
+      data: parsedData.data.map(item => Number(item[yField])),
       itemStyle: {
         color: '#007DFF'
-      }
-    }];
+      } as ItemStyle
+    } as SeriesConfig];
   }
 
   /**
@@ -1023,12 +1023,12 @@ export class DataVisualizationService {
 
     (config as GenericObject).xAxis = {
       type: 'category',
-      data: parsedData.data.map(item => item[xField]),
+      data: parsedData.data.map(item => String(item[xField])),
       axisLabel: {
         color: '#ffffff',
         rotate: 45
-      }
-    };
+      } as AxisLabelStyle
+    } as AxisConfig;
     (config as GenericObject).yAxis = {
       type: 'value',
       axisLabel: {
@@ -1039,15 +1039,15 @@ export class DataVisualizationService {
     (config as GenericObject).series = [{
       type: 'line',
       name: yField,
-      data: parsedData.data.map(item => item[yField]),
+      data: parsedData.data.map(item => Number(item[yField])),
       smooth: true,
       itemStyle: {
         color: '#007DFF'
-      },
+      } as ItemStyle,
       areaStyle: {
         opacity: 0.1
-      }
-    }];
+      } as AreaStyle
+    } as SeriesConfig];
   }
 
   /**
