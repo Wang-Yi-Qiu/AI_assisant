@@ -94,6 +94,7 @@ export interface TitleTextStyle {
 // 内联对象类型接口
 export interface AxisLabelStyle {
   color: string;
+  rotate?: number;
 }
 
 export interface ItemStyle {
@@ -1079,11 +1080,11 @@ export class DataVisualizationService {
     (config as GenericObject).series = [{
       type: 'scatter',
       name: `${xField} vs ${yField}`,
-      data: parsedData.data.map(item => [item[xField], item[yField]]),
+      data: parsedData.data.map(item => [Number(item[xField]), Number(item[yField])]),
       itemStyle: {
         color: '#007DFF'
-      }
-    }];
+      } as ItemStyle
+    } as SeriesConfig];
   }
 
   /**
