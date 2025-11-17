@@ -13,7 +13,13 @@ type QuickFix = GenericObject; // 快速修复类型
 
 // 通用对象接口，用于修复所有对象字面量
 export interface UniversalObject {
-  [key: string]: Object | string | number | boolean | undefined;
+  name?: string;
+  value?: number | string;
+  type?: string;
+  data?: Object[];
+  xField?: string;
+  yField?: string;
+  categoryField?: string;
 }
 
 // 图表类型枚举
@@ -205,7 +211,7 @@ export class DataVisualizationService {
         const values = data.map(row => {
           const rowRecord = row as GenericObject;
           return rowRecord[field];
-        }).filter(val => val !== null && val !== undefined);
+        }).filter(val => val !== null && val !== undefined) as Object[];
 
         const info = new FieldInfo();
         info.name = field;
@@ -251,7 +257,7 @@ export class DataVisualizationService {
         const values = data.map(row => {
           const rowRecord = row as GenericObject;
           return rowRecord[field];
-        }).filter(val => val !== null && val !== undefined);
+        }).filter(val => val !== null && val !== undefined) as Object[];
 
         const info = new FieldInfo();
         info.name = field;
@@ -835,7 +841,7 @@ export class DataVisualizationService {
       let data: object[] = [];
 
       // 检查userData是否有data属性
-      if (userData && typeof userData === 'object' && 'data' in userData) {
+      if (userData && typeof userData === 'object') {
         const csvData = userData as GenericObject;
         if (csvData.data && Array.isArray(csvData.data)) {
           data = csvData.data;
@@ -877,7 +883,7 @@ export class DataVisualizationService {
       // 填充坐标轴数据
       const xAxisConfig = (config as GenericObject).xAxis as GenericObject;
       if (xAxisConfig && xAxisConfig.type === 'category') {
-        this.fillXAxisData(config as unknown as GenericObject, data, fields);
+        this.fillXAxisData(config as GenericObject, data, fields);
       }
 
       return config;
