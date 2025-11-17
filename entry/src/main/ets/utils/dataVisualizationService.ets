@@ -806,7 +806,7 @@ export class DataVisualizationService {
       axisLabel: {
         color: '#ffffff'
       } as AxisLabelStyle
-    };
+    } as AxisConfig;
 
     (config as GenericObject).visualMap = {
       min: 0,
@@ -823,7 +823,7 @@ export class DataVisualizationService {
     (config as GenericObject).series = [{
       type: 'heatmap',
       data: []
-    }];
+    } as SeriesConfig];
   }
 
   /**
@@ -916,7 +916,7 @@ export class DataVisualizationService {
             const dataItem = item as GenericObject;
             return dataItem[yField];
           })
-        };
+        } as SeriesConfig;
       });
     } else {
       (serie as GenericObject).data = data.map(item => {
@@ -948,10 +948,10 @@ export class DataVisualizationService {
     const nameField = fields[0];
     const valueField = fields.length > 1 ? fields[1] : fields[0];
 
-    (serie as unknown as GenericObject).data = data.map(item => ({
+    (serie as GenericObject).data = data.map(item => ({
       name: item[nameField],
       value: item[valueField]
-    }));
+    } as UniversalObject));
   }
 
   /**
