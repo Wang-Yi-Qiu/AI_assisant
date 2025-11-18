@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECharts 图表</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1C1C1C;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        #chart-container {
+            width: 100%;
+            height: 100vh;
+            background-color: #1C1C1C;
+        }
+
+        .loading {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #1C1C1C;
+            color: #888;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #333;
+            border-top: 3px solid #007DFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #1C1C1C;
+            color: #ff4444;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading">
+        <div class="loading-spinner"></div>
+        <div>正在加载 ECharts...</div>
+    </div>
+
+    <div id="error" class="error" style="display: none;">
+        <div>图表加载失败</div>
+        <div id="error-message" style="font-size: 14px; margin-top: 10px; color: #888;"></div>
+    </div>
+
+    <div id="chart-container" style="display: none;"></div>
+
+    <script>
+        let myChart = null;
+        let retryCount = 0;
+        const maxRetries = 5;
+
+        function showError(message) {
+            console.error('ECharts Error:', message);
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'flex';
+            document.getElementById('error-message').textContent = message;
+        }
+
+        function initChart() {
+            try {
+                console.log('开始初始化 ECharts...');
+
+                // 检查 ECharts 是否已加载
+                if (typeof echarts === 'undefined') {
+                    throw new Error('ECharts 库未加载');
+                }
+
+                // 隐藏加载状态
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('chart-container').style.display = 'block';
+
+                // 初始化图表
+                const chartDom = document.getElementById('chart-container');
+                myChart = echarts.init(chartDom);
+
+                // 设置默认配置
+                const defaultOption = {
+                    title: {
+                        text: '数据可视化',
+                        left: 'center',
+                        textStyle: {
+                            color: '#ffffff'
+                        }
+                    },
+                    backgroundColor: '#1C1C1C',
+                    tooltip: {
+                        trigger: 'axis'
+                    },
+                    legend: {
+                        show: false,
+                        textStyle: {
+                            color: '#ffffff'
+                        }
+                    },
+                    grid: {
+                        left: '3%',
+                        right: '4%',
+                        bottom: '3%',
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: [],
+                        axisLabel: {
+                            color: '#ffffff'
+                        },
+                        axisLine: {
+                            lineStyle: {
+                                color: '#333333'
+                            }
+                        }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        axisLabel: {
+                            color: '#ffffff'
+                        },
+                        axisLine: {
+                            lineStyle: {
+                                color: '#333333'
+                            }
+                        },
+                        splitLine: {
+                            lineStyle: {
+                                color: '#333333'
+                            }
+                        }
+                    },
+                    series: [{
+                        data: [],
+                        type: 'bar',
+                        itemStyle: {
+                            color: '#007DFF'
+                        }
+                    }]
+                };
+
+                myChart.setOption(defaultOption);
+
+                // 将图表实例暴露给全局，供 HarmonyOS 调用
+                window.myChart = myChart;
+
+                console.log('ECharts 初始化完成');
+
+                // 监听窗口大小变化
+                window.addEventListener('resize', function() {
+                    if (myChart) {
+                        myChart.resize();
+                    }
+                });
+
+            } catch (error) {
+                console.error('ECharts 初始化失败:', error);
+                showError(error.message);
+            }
+        }
+
+        function loadECharts() {
+            console.log('检查 ECharts 库状态...');
+
+            if (typeof echarts !== 'undefined') {
+                console.log('ECharts 库已加载，开始初始化...');
+                initChart();
+                return;
+            }
+
+            retryCount++;
+            if (retryCount <= maxRetries) {
+                console.log(`ECharts 库尚未加载，重试中... (${retryCount}/${maxRetries})`);
+                setTimeout(loadECharts, 500);
+            } else {
+                showError('ECharts 库加载超时，请检查网络连接');
+            }
+        }
+
+        // 页面加载完成后开始初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('页面 DOM 加载完成');
+
+            // 延迟一点时间确保 CDN 资源加载完成
+            setTimeout(loadECharts, 100);
+        });
+
+        // 错误处理
+        window.addEventListener('error', function(event) {
+            console.error('页面错误:', event.error);
+            if (event.error.message && event.error.message.includes('echarts')) {
+                showError('ECharts 加载失败: ' + event.error.message);
+            }
+        });
+
+        // 控制台日志函数，供 HarmonyOS 调用
+        window.logToHarmonyOS = function(message) {
+            console.log('HarmonyOS Log:', message);
+        };
+
+        console.log('ECharts HTML 页面加载完成');
+    </script>
+</body>
+</html>

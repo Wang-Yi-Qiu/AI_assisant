@@ -1,15 +1,15 @@
 [
-  {"date": "2024-01-01", "users": 1000},
-  {"date": "2024-02-01", "users": 1200},
-  {"date": "2024-03-01", "users": 1500},
-  {"date": "2024-04-01", "users": 1800},
-  {"date": "2024-05-01", "users": 2200},
-  {"date": "2024-06-01", "users": 2600},
-  {"date": "2024-07-01", "users": 3100},
-  {"date": "2024-08-01", "users": 3700},
-  {"date": "2024-09-01", "users": 4400},
-  {"date": "2024-10-01", "users": 5200},
-  {"date": "2024-11-01", "users": 6100},
-  {"date": "2024-12-01", "users": 7200}
+  {"date": "2024-01-01", "users": 1000, "new_users": 120, "active_users": 850, "retention_rate": 85.0},
+  {"date": "2024-02-01", "users": 1120, "new_users": 135, "active_users": 950, "retention_rate": 84.8},
+  {"date": "2024-03-01", "users": 1255, "new_users": 165, "active_users": 1080, "retention_rate": 86.1},
+  {"date": "2024-04-01", "users": 1420, "new_users": 180, "active_users": 1220, "retention_rate": 85.9},
+  {"date": "2024-05-01", "users": 1600, "new_users": 210, "active_users": 1380, "retention_rate": 86.3},
+  {"date": "2024-06-01", "users": 1810, "new_users": 245, "active_users": 1560, "retention_rate": 86.2},
+  {"date": "2024-07-01", "users": 2055, "new_users": 280, "active_users": 1780, "retention_rate": 86.6},
+  {"date": "2024-08-01", "users": 2335, "new_users": 320, "active_users": 2030, "retention_rate": 87.0},
+  {"date": "2024-09-01", "users": 2655, "new_users": 380, "active_users": 2320, "retention_rate": 87.4},
+  {"date": "2024-10-01", "users": 3035, "new_users": 425, "active_users": 2660, "retention_rate": 87.7},
+  {"date": "2024-11-01", "users": 3460, "new_users": 490, "active_users": 3050, "retention_rate": 88.2},
+  {"date": "2024-12-01", "users": 3950, "new_users": 550, "active_users": 3490, "retention_rate": 88.4}
 ]
 

@@ -2,6 +2,7 @@ import router from '@ohos.router';
 import { ChartConfig, UserData, generateChart, generateChartLocal, generateChartFromParsedDataLocal, getSupportedChartTypes, CSVData } from '../utils/aiService';
 import { ParsedData } from '../utils/fileDataParser';
 import { dataVisualizationService, ChartType } from '../utils/dataVisualizationService';
+import { chartExportService, ExportFormat, ExportOptions } from '../utils/chartExportService';
 import webview from '@ohos.web.webview';
 import picker from '@ohos.file.picker';
 import fs from '@ohos.file.fs';
@@ -46,12 +47,7 @@ interface SVGExportResult {
   error?: string;
 }
 
-interface ExportResult {
-  success: boolean;
-  content?: string;
-  filename?: string;
-  error?: string;
-}
+// ExportResult 接口已从 chartExportService 导入
 
 // 辅助函数：安全地获取数据长度
 function getDataLength(userData: UserData): number {
@@ -276,6 +272,8 @@ export struct ChartPage {
   @State errorMessage: string = '';
   @State loadingMessage: string = '正在加载图表...';
   @State loadTimeout: number = 0; // 用于存储超时定时器ID
+  @State isExporting: boolean = false; // 导出状态
+  @State exportMessage: string = ''; // 导出消息
   controller?: webview.WebviewController;
 
   aboutToAppear() {
@@ -869,9 +867,54 @@ export struct ChartPage {
 
         Blank()
 
-        // 右侧占位，保持标题居中
-        Blank()
-          .width(40)
+        // 导出按钮组
+        Row() {
+          // PNG导出按钮
+          Button() {
+            Text('PNG')
+              .fontSize(14)
+              .fontColor(Color.White)
+          }
+          .type(ButtonType.Normal)
+          .backgroundColor(Color.Transparent)
+          .border({ width: 1, color: Color.White })
+          .borderRadius(4)
+          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+          .onClick(() => {
+            this.exportChart(ExportFormat.PNG);
+          })
+
+          // PDF导出按钮
+          Button() {
+            Text('PDF')
+              .fontSize(14)
+              .fontColor(Color.White)
+          }
+          .type(ButtonType.Normal)
+          .backgroundColor(Color.Transparent)
+          .border({ width: 1, color: Color.White })
+          .borderRadius(4)
+          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+          .margin({ left: 8 })
+          .onClick(() => {
+            this.exportChart(ExportFormat.PDF);
+          })
+
+          // 更多选项按钮
+          Button() {
+            Text('⚙')
+              .fontSize(16)
+              .fontColor(Color.White)
+          }
+          .type(ButtonType.Normal)
+          .backgroundColor(Color.Transparent)
+          .width(32)
+          .height(32)
+          .margin({ left: 8 })
+          .onClick(() => {
+            this.showExportMenu();
+          })
+        }
       }
       .width('100%')
       .height(56)
@@ -1136,5 +1179,107 @@ export struct ChartPage {
     .width('100%')
     .height('100%')
     .backgroundColor('#1C1C1C')
+  }
+
+  /**
+   * 导出图表
+   */
+  private async exportChart(format: ExportFormat): Promise<void> {
+    if (!this.chartConfig) {
+      this.errorMessage = '没有图表配置可以导出';
+      return;
+    }
+
+    console.info(`[ChartPage] 开始导出图表，格式: ${format}`);
+    this.isExporting = true;
+    this.exportMessage = `正在导出${format.toUpperCase()}格式...`;
+
+    try {
+      // 生成文件名
+      const fileName = chartExportService.generateExportFileName(this.chartConfig.title?.text);
+
+      // 配置导出选项
+      const options: ExportOptions = {
+        format,
+        quality: 0.9,
+        scale: 2,
+        backgroundColor: this.chartConfig.backgroundColor || '#1C1C1C'
+      };
+
+      // 执行导出
+      const result = await chartExportService.exportChart(
+        this.chartConfig,
+        fileName,
+        options
+      );
+
+      // 处理导出结果
+      if (result.success) {
+        this.exportMessage = `${format.toUpperCase()}导出成功！\n文件: ${result.fileName}`;
+        console.info(`[ChartPage] 导出成功:`, result);
+      } else {
+        this.exportMessage = `导出失败: ${result.error}`;
+        console.error(`[ChartPage] 导出失败:`, result);
+      }
+
+    } catch (error) {
+      this.exportMessage = `导出过程中发生错误: ${error}`;
+      console.error(`[ChartPage] 导出异常:`, error);
+    } finally {
+      this.isExporting = false;
+    }
+  }
+
+  /**
+   * 显示导出菜单
+   */
+  private showExportMenu(): void {
+    if (!this.chartConfig) {
+      this.errorMessage = '没有图表配置';
+      return;
+    }
+
+    console.info('[ChartPage] 显示导出菜单');
+
+    // 在实际应用中，这里可以显示一个选择对话框或底部弹窗
+    // 目前先直接导出JSON格式作为示例
+    this.exportChart(ExportFormat.JSON);
+  }
+
+  /**
+   * 显示导出消息
+   */
+  private ExportMessageDialog() {
+    if (this.exportMessage) {
+      console.info(`导出提示: ${this.exportMessage}`);
+    }
+  }
+
+  /**
+   * 简单的toast提示
+   */
+  private showToast(message: string): void {
+    console.info(`[ChartPage] Toast: ${message}`);
+    // 在HarmonyOS中可以使用showToast方法
+    try {
+      // 使用HarmonyOS的prompt模块
+      // 这里先使用console.log作为占位符
+      console.log(`Toast提示: ${message}`);
+    } catch (error) {
+      console.warn('[ChartPage] Toast显示失败:', error);
+    }
+  }
+
+  /**
+   * 监听导出状态变化
+   */
+  private onExportStatusChange(): void {
+    if (this.isExporting) {
+      this.showToast('开始导出...');
+    } else if (this.exportMessage && this.exportMessage.includes('成功')) {
+      this.showToast('导出成功！');
+    } else if (this.exportMessage && this.exportMessage.includes('失败')) {
+      this.showToast('导出失败');
+    }
   }
 }

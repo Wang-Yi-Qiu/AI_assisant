@@ -1,107 +1,52 @@
 import router from '@ohos.router';
-import { generateChart, ChartConfig, UserData } from '../utils/aiService';
-import { loadSampleData, getSampleDataList, SampleDataset } from '../utils/sampleDataManager';
-import { getSampleChartList, SampleChart } from '../utils/sampleChartManager';
-import { setChartOption } from './ChartPage';
+import { LocalChartService, LocalChartData, ExportFormat } from '../utils/localChartService';
 import { ErrorHandler } from '../utils/errorHandler';
-import { getGlobalContext } from '../utils/sampleDataManager';
 import { BusinessError } from '@kit.BasicServicesKit';
-import picker from '@ohos.file.picker';
-import fs from '@ohos.file.fs';
-import { util } from '@kit.ArkTS';
-
-// 定义数据行类型（ArkTS不支持索引签名，使用Map）
-type DataRow = Map<string, string | number>;
 
 @Entry
 @Component
 export struct AIAssistantPage {
   @State isLoading: boolean = false;
-  @State loadingMessage: string = '正在生成图表...';
-  @State sampleDataList: SampleDataset[] = getSampleDataList();
-  @State sampleChartList: SampleChart[] = getSampleChartList();
-  @State showSampleDataDialog: boolean = false;
+  @State loadingMessage: string = '正在加载...';
+  private localChartService: LocalChartService = LocalChartService.getInstance();
 
   aboutToAppear() {
-    // 页面加载时获取样本数据列表和示例图表列表
-    this.sampleDataList = getSampleDataList();
-    this.sampleChartList = getSampleChartList();
-  }
-
-  /**
-   * 使用示例图表
-   */
-  handleUseSampleChart(sampleChart: SampleChart) {
-    console.info('[AIAssistantPage] 使用示例图表:', sampleChart.id);
-    setChartOption(sampleChart.chartConfig);
-    router.pushUrl({
-      url: 'pages/ChartPage'
-    }).catch((err: BusinessError) => {
-      console.error('跳转到图表页失败:', err);
-    });
+    console.info('[AIAssistantPage] 页面初始化');
   }
 
   /**
    * 使用示例数据生成图表
    */
-  async handleUseSampleData(sampleId: string) {
+  async handleUseSampleData(dataType: 'sales' | 'weather' | 'students') {
     if (this.isLoading) {
       return;
     }
 
     this.isLoading = true;
-    this.loadingMessage = '正在加载示例数据...';
+    this.loadingMessage = '正在生成示例数据...';
 
     try {
-      console.info('[AIAssistantPage] 开始使用示例数据生成图表:', sampleId);
-      
-      // 1. 加载示例数据
-      const context = getGlobalContext();
-      if (!context) {
-        throw new Error('应用上下文不可用');
-      }
+      console.info('[AIAssistantPage] 开始生成示例数据:', dataType);
 
-      this.loadingMessage = '正在加载示例数据...';
-      const sampleDataJson = await loadSampleData(sampleId, context);
-      console.info('[AIAssistantPage] 示例数据加载成功，长度:', sampleDataJson.length);
+      // 生成示例数据
+      const chartData = this.localChartService.generateSampleData(dataType);
+      console.info('[AIAssistantPage] 示例数据生成完成');
 
-      // 2. 解析数据
-      let userData: UserData;
-      try {
-        userData = JSON.parse(sampleDataJson);
-        console.info('[AIAssistantPage] 数据解析成功');
-      } catch (parseError) {
-        console.error('[AIAssistantPage] 数据解析失败:', parseError);
-        throw new Error('示例数据格式错误');
-      }
-
-      // 3. 调用 AI 服务生成图表配置
-      this.loadingMessage = '正在调用千问API生成图表...';
-      console.info('[AIAssistantPage] 开始调用 generateChart API');
-      
-      const chartConfig: ChartConfig = await generateChart(userData);
-      console.info('[AIAssistantPage] 图表配置生成成功:', JSON.stringify(chartConfig).substring(0, 200));
-
-      // 4. 设置图表配置并跳转
-      setChartOption(chartConfig, userData);
-      console.info('[AIAssistantPage] 图表配置已设置，准备跳转');
-
-      // 5. 跳转到图表页面
+      // 跳转到图表页面并传递数据
       await router.pushUrl({
-        url: 'pages/ChartPage'
+        url: 'pages/LocalChartPage',
+        params: {
+          'chartData': JSON.stringify(chartData)
+        }
       });
-      
-      console.info('[AIAssistantPage] 已跳转到图表页面');
+
+      console.info('[AIAssistantPage] 已跳转到本地图表页面');
     } catch (error) {
-      console.error('[AIAssistantPage] 生成图表失败:', error);
-      const appError = ErrorHandler.handle(error, 'handleUseSampleData');
-      
-      // 显示错误提示（这里可以添加 Toast 或 Dialog）
-      this.loadingMessage = `生成失败: ${appError.userMessage}`;
-      
-      // 延迟清除错误消息
+      console.error('[AIAssistantPage] 生成示例数据失败:', error);
+      this.loadingMessage = `生成失败: ${error}`;
+
       setTimeout(() => {
-        this.loadingMessage = '正在生成图表...';
+        this.loadingMessage = '正在加载...';
       }, 3000);
     } finally {
       this.isLoading = false;
@@ -116,213 +61,43 @@ export struct AIAssistantPage {
       return;
     }
 
+    this.isLoading = true;
+    this.loadingMessage = '正在选择文件...';
+
     try {
-      console.info('[AIAssistantPage] ========== 开始文件上传 ==========');
-      this.isLoading = true;
-      this.loadingMessage = '正在选择文件...';
+      console.info('[AIAssistantPage] 开始文件上传');
 
-      // 创建文件选择器
-      const documentSelectOptions = new picker.DocumentSelectOptions();
-      documentSelectOptions.maxSelectNumber = 1; // 单选文件
+      // 使用本地服务解析CSV
+      const chartData = await this.localChartService.selectAndParseCSV();
 
-      const documentViewPicker = new picker.DocumentViewPicker();
+      if (chartData) {
+        console.info('[AIAssistantPage] CSV解析成功');
 
-      console.info('[AIAssistantPage] 文件选择器已初始化');
-
-      // 打开文件选择器
-      const uriList = await documentViewPicker.select(documentSelectOptions);
-      console.info('[AIAssistantPage] 文件选择结果:', uriList);
-
-      if (uriList && uriList.length > 0) {
-        const fileUri = uriList[0];
-        console.info('[AIAssistantPage] 选择文件:', fileUri);
-
-        this.loadingMessage = '正在读取文件内容...';
-
-        // 读取文件内容
-        const fileContent = await this.readFileContent(fileUri);
-
-        if (fileContent) {
-          this.loadingMessage = '正在解析数据...';
-
-          // 解析CSV数据
-          const userData = this.parseCSVContent(fileContent);
-
-          if (userData) {
-            this.loadingMessage = '正在调用AI生成图表...';
-
-            // 调用AI服务生成图表
-            const chartConfig: ChartConfig = await generateChart(userData);
-            console.info('[AIAssistantPage] 图表配置生成成功');
-
-            // 设置图表配置并跳转
-            setChartOption(chartConfig, userData);
-            console.info('[AIAssistantPage] 图表配置已设置，准备跳转');
-
-            // 跳转到图表页面
-            await router.pushUrl({
-              url: 'pages/ChartPage'
-            });
-
-            console.info('[AIAssistantPage] 已跳转到图表页面');
-          } else {
-            throw new Error('CSV数据解析失败');
+        // 跳转到图表页面并传递数据
+        await router.pushUrl({
+          url: 'pages/LocalChartPage',
+          params: {
+            'chartData': JSON.stringify(chartData)
           }
-        }
+        });
+
+        console.info('[AIAssistantPage] 已跳转到本地图表页面');
       } else {
-        console.info('[AIAssistantPage] 用户取消文件选择');
+        throw new Error('CSV文件解析失败');
       }
     } catch (error) {
       console.error('[AIAssistantPage] 文件上传失败:', error);
-      const appError = ErrorHandler.handle(error, 'handleFileUpload');
+      this.loadingMessage = `上传失败: ${error}`;
 
-      // 显示错误提示
-      this.loadingMessage = `上传失败: ${appError.userMessage}`;
-
-      // 延迟清除错误消息
       setTimeout(() => {
-        this.loadingMessage = '正在生成图表...';
+        this.loadingMessage = '正在加载...';
       }, 3000);
     } finally {
       this.isLoading = false;
     }
   }
 
-  /**
-   * 读取文件内容
-   */
-  private async readFileContent(uri: string): Promise<string | null> {
-    try {
-      console.info('[AIAssistantPage] 开始读取文件:', uri);
-
-      // 打开文件
-      const file = fs.openSync(uri, fs.OpenMode.READ_ONLY);
-      console.info('[AIAssistantPage] 文件打开成功');
-
-      // 获取文件大小
-      const stat = fs.statSync(file.fd);
-      const fileSize = stat.size;
-      console.info('[AIAssistantPage] 文件大小:', fileSize, 'bytes');
-
-      // 检查文件大小限制 (10MB)
-      if (fileSize > 10 * 1024 * 1024) {
-        throw new Error('文件过大，请选择小于10MB的文件');
-      }
-
-      // 读取文件内容
-      const buffer = new ArrayBuffer(fileSize);
-      const readSize = fs.readSync(file.fd, buffer);
-      console.info('[AIAssistantPage] 读取字节数:', readSize);
-
-      // 关闭文件
-      fs.closeSync(file);
-
-      // 转换为字符串
-      const decoder = util.TextDecoder.create('utf-8');
-      const content = decoder.decode(new Uint8Array(buffer));
-
-      console.info('[AIAssistantPage] 文件读取完成，内容长度:', content.length);
-      return content;
-
-    } catch (error) {
-      console.error('[AIAssistantPage] 读取文件失败:', error);
-      throw new Error(`文件读取失败: ${error}`);
-    }
-  }
-
-  /**
-   * 解析CSV内容
-   */
-  private parseCSVContent(content: string): UserData | null {
-    try {
-      console.info('[AIAssistantPage] 开始解析CSV内容');
-      console.info('[AIAssistantPage] 原始内容长度:', content.length);
-
-      // 按行分割
-      const lines = content.trim().split('\n').filter(line => line.trim() !== '');
-      console.info('[AIAssistantPage] 有效行数:', lines.length);
-
-      if (lines.length < 2) {
-        throw new Error('CSV文件内容不足，至少需要标题行和一行数据');
-      }
-
-      // 解析标题行
-      const headers = this.parseCSVLine(lines[0]);
-      console.info('[AIAssistantPage] 解析到表头:', headers);
-
-      if (headers.length < 2) {
-        throw new Error('CSV文件至少需要两列数据');
-      }
-
-      // 解析数据行
-      const data: DataRow[] = [];
-      for (let i = 1; i < lines.length; i++) {
-        try {
-          const values = this.parseCSVLine(lines[i]);
-          if (values.length === headers.length) {
-            const rowObject: DataRow = new Map<string, string | number>();
-            headers.forEach((header, index) => {
-              const value = values[index];
-              // 尝试转换为数字，如果失败则保持字符串
-              const numValue = Number(value);
-              rowObject.set(header.trim(), isNaN(numValue) ? value.trim() : numValue);
-            });
-            data.push(rowObject);
-          }
-        } catch (lineError) {
-          console.warn(`[AIAssistantPage] 跳过第${i + 1}行，解析失败:`, lineError);
-        }
-      }
-
-      console.info('[AIAssistantPage] 解析完成，数据行数:', data.length);
-
-      if (data.length === 0) {
-        throw new Error('没有有效的数据行');
-      }
-
-      return { data };
-
-    } catch (error) {
-      console.error('[AIAssistantPage] CSV解析失败:', error);
-      throw new Error(`CSV解析失败: ${error}`);
-    }
-  }
-
-  /**
-   * 解析CSV行（处理逗号分隔和引号）
-   */
-  private parseCSVLine(line: string): string[] {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-
-      if (char === '"') {
-        if (inQuotes && line[i + 1] === '"') {
-          // 转义的引号
-          current += '"';
-          i++; // 跳过下一个引号
-        } else {
-          // 切换引号状态
-          inQuotes = !inQuotes;
-        }
-      } else if (char === ',' && !inQuotes) {
-        // 字段分隔符
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-
-    // 添加最后一个字段
-    result.push(current.trim());
-
-    return result;
-  }
-
+  
   /**
    * 构建操作按钮
    */
@@ -352,75 +127,7 @@ export struct AIAssistantPage {
     .onClick(onClick)
   }
 
-  /**
-   * 构建示例图表卡片
-   */
-  @Builder
-  SampleChartCard(sampleChart: SampleChart) {
-    Column() {
-      Text(sampleChart.icon)
-        .fontSize(40)
-        .margin({ bottom: 10 })
-      Text(sampleChart.name)
-        .fontSize(12)
-        .fontColor(Color.Gray)
-        .margin({ bottom: 4 })
-      Text(sampleChart.description)
-        .fontSize(10)
-        .fontColor('#666666')
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-    }
-    .width('100%')
-    .height('100%')
-    .justifyContent(FlexAlign.Center)
-    .alignItems(HorizontalAlign.Center)
-    .padding(10)
-    .backgroundColor('#1C1C1C')
-    .borderRadius(15)
-    .onClick(() => {
-      this.handleUseSampleChart(sampleChart);
-    })
-  }
-
-  /**
-   * 构建示例数据选择项
-   */
-  @Builder
-  SampleDataItem(sample: SampleDataset) {
-    Row() {
-      Column() {
-        Text(sample.name)
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(Color.White)
-          .alignSelf(ItemAlign.Start)
-        Text(sample.description)
-          .fontSize(12)
-          .fontColor(Color.Gray)
-          .maxLines(2)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .alignSelf(ItemAlign.Start)
-          .margin({ top: 4 })
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-
-      Text('→')
-        .fontSize(20)
-        .fontColor('#007DFF')
-    }
-    .width('100%')
-    .padding(15)
-    .backgroundColor('#252525')
-    .borderRadius(10)
-    .margin({ bottom: 10 })
-    .onClick(() => {
-      this.showSampleDataDialog = false;
-      this.handleUseSampleData(sample.id);
-    })
-  }
-
+  
   build() {
     Stack() {
       // 主内容区域 - 可滚动
@@ -466,21 +173,14 @@ export struct AIAssistantPage {
                 console.error('跳转到数据输入页面失败:', err);
               });
             })
-
-            // 使用示例数据按钮（深色背景，亮色边框）
-            this.ActionButton('📊', '使用示例数据', false, () => {
-              console.info('点击使用示例数据');
-              // 显示示例数据选择对话框
-              this.showSampleDataDialog = true;
-            })
           }
           .width('100%')
           .margin({ bottom: 30 })
 
-          // 历史图表区
+          // 示例数据区域
           Column() {
             Row() {
-              Text('历史图表')
+              Text('示例数据')
                 .fontSize(18)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(Color.White)
@@ -489,20 +189,47 @@ export struct AIAssistantPage {
             .width('100%')
             .margin({ bottom: 15 })
 
-            // 示例图表网格布局
-            Grid() {
-              ForEach(this.sampleChartList, (sampleChart: SampleChart) => {
-                GridItem() {
-                  this.SampleChartCard(sampleChart)
-                }
-              }, (sampleChart: SampleChart) => sampleChart.id)
+            // 示例数据卡片
+            Column() {
+              Row() {
+                Button('📈 销售数据')
+                  .width('48%')
+                  .height(80)
+                  .backgroundColor('#252525')
+                  .fontColor(Color.White)
+                  .fontSize(14)
+                  .margin({ right: '4%' })
+                  .onClick(() => {
+                    this.handleUseSampleData('sales');
+                  })
+
+                Button('🌤️ 天气数据')
+                  .width('48%')
+                  .height(80)
+                  .backgroundColor('#252525')
+                  .fontColor(Color.White)
+                  .fontSize(14)
+                  .onClick(() => {
+                    this.handleUseSampleData('weather');
+                  })
+              }
+              .width('100%')
+              .margin({ bottom: 12 })
+
+              Button('👨‍🎓 学生成绩')
+                .width('100%')
+                .height(80)
+                .backgroundColor('#252525')
+                .fontColor(Color.White)
+                .fontSize(14)
+                .onClick(() => {
+                  this.handleUseSampleData('students');
+                })
             }
-            .columnsTemplate('1fr 1fr')
-            .rowsTemplate('1fr 1fr')
-            .columnsGap(12)
-            .rowsGap(12)
             .width('100%')
-            .height(220)
+            .padding(15)
+            .backgroundColor('#1C1C1C')
+            .borderRadius(10)
           }
           .width('90%')
           .margin({ bottom: 20 })
@@ -538,64 +265,7 @@ export struct AIAssistantPage {
         .position({ x: 0, y: '70%' }) // 固定在底部位置
       }
 
-      // 示例数据选择对话框（覆盖在顶层）
-      if (this.showSampleDataDialog) {
-        Stack() {
-          // 背景遮罩
-          Column()
-            .width('100%')
-            .height('100%')
-            .backgroundColor('rgba(0, 0, 0, 0.5)')
-            .onClick(() => {
-              this.showSampleDataDialog = false;
-            })
-
-          // 对话框内容
-          Column() {
-            // 标题栏
-            Row() {
-              Text('选择示例数据')
-                .fontSize(18)
-                .fontWeight(FontWeight.Bold)
-                .fontColor(Color.White)
-              Blank()
-              Text('✕')
-                .fontSize(24)
-                .fontColor(Color.Gray)
-                .onClick(() => {
-                  this.showSampleDataDialog = false;
-                })
-            }
-            .width('100%')
-            .padding(15)
-            .border({ width: 0, color: Color.Transparent })
-
-            Divider()
-              .color('#333333')
-
-            // 示例数据列表
-            Scroll() {
-              Column() {
-                ForEach(this.sampleDataList, (sample: SampleDataset) => {
-                  this.SampleDataItem(sample)
-                }, (sample: SampleDataset) => sample.id)
-              }
-              .width('100%')
-              .padding(15)
-            }
-            .layoutWeight(1)
-            .width('100%')
           }
-          .width('90%')
-          .height('70%')
-          .backgroundColor('#252525')
-          .borderRadius(15)
-          .alignSelf(ItemAlign.Center)
-        }
-        .width('100%')
-        .height('100%')
-      }
-    }
     .width('100%')
     .height('100%')
     .backgroundColor('#1C1C1C')

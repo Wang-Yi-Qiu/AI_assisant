@@ -5,7 +5,7 @@
  */
 
 import router from '@ohos.router';
-import { generateChart, ChartConfig, UserData, CSVData } from '../utils/aiService';
+import { generateChartLocal, ChartConfig, UserData, CSVData } from '../utils/aiService';
 import { setChartOption } from './ChartPage';
 import { ErrorHandler } from '../utils/errorHandler';
 
@@ -150,10 +150,10 @@ export struct DataInputPage {
         throw new Error('没有有效的数据行，请填写数据后再生成图表');
       }
 
-      this.loadingMessage = '正在调用AI生成图表...';
+      this.loadingMessage = '正在生成本地图表...';
 
-      // 调用AI服务生成图表
-      const chartConfig: ChartConfig = await generateChart(userData);
+      // 使用本地服务生成图表（无需API调用）
+      const chartConfig: ChartConfig = await generateChartLocal(userData);
       console.info('[DataInputPage] 图表配置生成成功');
 
       // 设置图表配置并跳转

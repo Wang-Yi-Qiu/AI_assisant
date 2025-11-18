@@ -1,0 +1,12 @@
+[
+  {"date": "2024-11-01", "visitors": 1520, "page_views": 4800, "bounce_rate": 32.5, "avg_duration": 185},
+  {"date": "2024-11-02", "visitors": 1680, "page_views": 5200, "bounce_rate": 31.8, "avg_duration": 192},
+  {"date": "2024-11-03", "visitors": 1420, "page_views": 4300, "bounce_rate": 34.2, "avg_duration": 178},
+  {"date": "2024-11-04", "visitors": 1890, "page_views": 5900, "bounce_rate": 29.8, "avg_duration": 205},
+  {"date": "2024-11-05", "visitors": 2100, "page_views": 6400, "bounce_rate": 28.5, "avg_duration": 218},
+  {"date": "2024-11-06", "visitors": 1950, "page_views": 6100, "bounce_rate": 30.2, "avg_duration": 196},
+  {"date": "2024-11-07", "visitors": 1780, "page_views": 5500, "bounce_rate": 31.1, "avg_duration": 188},
+  {"date": "2024-11-08", "visitors": 2250, "page_views": 7200, "bounce_rate": 27.6, "avg_duration": 225},
+  {"date": "2024-11-09", "visitors": 1980, "page_views": 6300, "bounce_rate": 29.3, "avg_duration": 202},
+  {"date": "2024-11-10", "visitors": 1850, "page_views": 5800, "bounce_rate": 30.8, "avg_duration": 195}
+]

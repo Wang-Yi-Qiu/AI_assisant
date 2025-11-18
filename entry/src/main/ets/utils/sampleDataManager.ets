@@ -62,6 +62,30 @@ const SAMPLE_DATA_LIST: SampleDataset[] = [
     filePath: 'sample-data/timeseries-daily.json',
     category: 'timeseries',
     chartType: 'line'
+  },
+  {
+    id: 'product-performance',
+    name: '产品性能数据',
+    description: '展示各产品销售、利润和市场份额的综合数据，适合条形图和散点图',
+    filePath: 'sample-data/product-performance.json',
+    category: 'sales',
+    chartType: 'bar'
+  },
+  {
+    id: 'customer-satisfaction',
+    name: '客户满意度数据',
+    description: '展示不同类别的客户满意度评分，适合条形图',
+    filePath: 'sample-data/customer-satisfaction.json',
+    category: 'other',
+    chartType: 'bar'
+  },
+  {
+    id: 'website-analytics',
+    name: '网站分析数据',
+    description: '展示网站访客和用户行为数据，适合多指标折线图',
+    filePath: 'sample-data/website-analytics.json',
+    category: 'users',
+    chartType: 'line'
   }
 ];
 

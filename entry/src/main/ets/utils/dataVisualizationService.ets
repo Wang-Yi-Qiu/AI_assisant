@@ -220,24 +220,48 @@ export class DataVisualizationService {
     const fieldInfo: Map<string, FieldInfo> = new Map<string, FieldInfo>();
 
     try {
+      console.info('[DataVisualizationService] analyzeFields 开始， userData 类型:', typeof userData);
+      console.info('[DataVisualizationService] userData 内容预览:', JSON.stringify(userData).substring(0, 200));
+
       // 尝试解析为CSVData格式
       const csvData = userData as GenericObject;
       let data: Object[] = [];
 
       if (csvData.data && Array.isArray(csvData.data)) {
         data = csvData.data;
+        console.info('[DataVisualizationService] 使用 csvData.data，数组长度:', data.length);
       } else if (Array.isArray(userData)) {
         data = userData;
-      } else if (typeof userData === 'object') {
+        console.info('[DataVisualizationService] 使用 userData 数组，数组长度:', data.length);
+      } else if (typeof userData === 'object' && userData !== null) {
         data = [userData]; // 单个对象
-      }
-
-      if (data.length === 0) {
+        console.info('[DataVisualizationService] 使用单个对象格式');
+      } else {
+        console.error('[DataVisualizationService] 无效的 userData 格式');
         return fieldInfo;
       }
 
-      // 获取所有字段名
-      const fields = Object.keys(data[0]);
+      if (data.length === 0) {
+        console.warn('[DataVisualizationService] 数据数组为空');
+        return fieldInfo;
+      }
+
+      // 检查第一个数据项的有效性
+      const firstItem = data[0];
+      if (!firstItem || typeof firstItem !== 'object') {
+        console.error('[DataVisualizationService] 第一个数据项无效:', firstItem);
+        return fieldInfo;
+      }
+
+      // 获取所有字段名，添加错误检查
+      let fields: string[] = [];
+      try {
+        fields = Object.keys(firstItem);
+        console.info('[DataVisualizationService] 字段列表:', fields.join(', '));
+      } catch (error) {
+        console.error('[DataVisualizationService] 获取字段名失败:', error, 'firstItem:', firstItem);
+        return fieldInfo;
+      }
 
       for (const field of fields) {
         const values = data.map(row => {
@@ -248,7 +272,17 @@ export class DataVisualizationService {
         const info = new FieldInfo();
         info.name = field;
         info.dataType = this.detectDataType(values);
-        info.uniqueCount = new Set(values).size;
+        // 修复ArkTS中Set兼容性问题
+        let uniqueCount = 0;
+        const uniqueValues: string[] = [];
+        for (let i = 0; i < values.length; i++) {
+          const val = String(values[i]);
+          if (!uniqueValues.includes(val)) {
+            uniqueValues.push(val);
+            uniqueCount++;
+          }
+        }
+        info.uniqueCount = uniqueCount;
         info.missingCount = data.length - values.length;
         info.sampleValues = values.slice(0, 5);
 
@@ -265,6 +299,8 @@ export class DataVisualizationService {
       }
     } catch (error) {
       console.error('[DataVisualizationService] 分析字段失败:', error);
+      console.error('[DataVisualizationService] 错误堆栈:', error instanceof Error ? error.stack : 'No stack available');
+      console.error('[DataVisualizationService] userData 原始数据:', JSON.stringify(userData));
     }
 
     return fieldInfo;
@@ -294,7 +330,17 @@ export class DataVisualizationService {
         const info = new FieldInfo();
         info.name = field;
         info.dataType = this.detectDataType(values);
-        info.uniqueCount = new Set(values).size;
+        // 修复ArkTS中Set兼容性问题
+        let uniqueCount = 0;
+        const uniqueValues: string[] = [];
+        for (let i = 0; i < values.length; i++) {
+          const val = String(values[i]);
+          if (!uniqueValues.includes(val)) {
+            uniqueValues.push(val);
+            uniqueCount++;
+          }
+        }
+        info.uniqueCount = uniqueCount;
         info.missingCount = data.length - values.length;
         info.sampleValues = values.slice(0, 5);
 
@@ -356,8 +402,12 @@ export class DataVisualizationService {
     const categoricalFields: FieldInfo[] = [];
     const temporalFields: FieldInfo[] = [];
 
-    // 将Map转换为数组并分类
-    for (const info of fieldInfo.values()) {
+    // 将Map转换为数组并分类（修复ArkTS Map.values()兼容性问题）
+    const fieldArray: FieldInfo[] = [];
+    fieldInfo.forEach((info, key) => {
+      fieldArray.push(info);
+    });
+    for (const info of fieldArray) {
       if (info.dataType === DataType.NUMERICAL) {
         numericalFields.push(info);
       } else if (info.dataType === DataType.CATEGORICAL) {
@@ -425,8 +475,12 @@ export class DataVisualizationService {
     const categoricalFields: FieldInfo[] = [];
     const temporalFields: FieldInfo[] = [];
 
-    // 将Map转换为数组并分类
-    for (const info of fieldInfo.values()) {
+    // 将Map转换为数组并分类（修复ArkTS Map.values()兼容性问题）
+    const fieldArray: FieldInfo[] = [];
+    fieldInfo.forEach((info, key) => {
+      fieldArray.push(info);
+    });
+    for (const info of fieldArray) {
       if (info.dataType === DataType.NUMERICAL) {
         numericalFields.push(info);
       } else if (info.dataType === DataType.CATEGORICAL) {
@@ -528,8 +582,12 @@ export class DataVisualizationService {
     const categoricalFields: FieldInfo[] = [];
     const temporalFields: FieldInfo[] = [];
 
-    // 将Map转换为数组并分类
-    for (const info of fieldInfo.values()) {
+    // 将Map转换为数组并分类（修复ArkTS Map.values()兼容性问题）
+    const fieldArray: FieldInfo[] = [];
+    fieldInfo.forEach((info, key) => {
+      fieldArray.push(info);
+    });
+    for (const info of fieldArray) {
       if (info.dataType === DataType.NUMERICAL) {
         numericalFields.push(info);
       } else if (info.dataType === DataType.CATEGORICAL) {
@@ -612,8 +670,12 @@ export class DataVisualizationService {
     const categoricalFields: FieldInfo[] = [];
     const temporalFields: FieldInfo[] = [];
 
-    // 将Map转换为数组并分类
-    for (const info of fieldInfo.values()) {
+    // 将Map转换为数组并分类（修复ArkTS Map.values()兼容性问题）
+    const fieldArray: FieldInfo[] = [];
+    fieldInfo.forEach((info, key) => {
+      fieldArray.push(info);
+    });
+    for (const info of fieldArray) {
       if (info.dataType === DataType.NUMERICAL) {
         numericalFields.push(info);
       } else if (info.dataType === DataType.CATEGORICAL) {
@@ -940,12 +1002,15 @@ export class DataVisualizationService {
     // 如果有分类字段，分组数据
     if (fields.length > 2) {
       const categoryField = fields[2];
-      const categorySet = new Set<string>();
+      const categoryArray: string[] = [];
       for (const item of data) {
         const dataItem = item as GenericObject;
-        categorySet.add(String(dataItem[categoryField]));
+        const category = String(dataItem[categoryField]);
+        if (!categoryArray.includes(category)) {
+          categoryArray.push(category);
+        }
       }
-      const categories = Array.from(categorySet);
+      const categories = categoryArray;
 
       (serie as GenericObject).data = categories.map(category => {
         const categoryData = data.filter(item => {
@@ -1014,17 +1079,20 @@ export class DataVisualizationService {
    */
   private fillXAxisData(config: object, data: object[], fields: string[]): void {
     const xField = fields[0];
-    const uniqueValues = new Set<string>();
+    const uniqueValuesArray: string[] = [];
     data.forEach((item: object) => {
       const itemObj = item as Record<string, Object>;
       const value = itemObj[xField];
       if (value !== null && value !== undefined) {
-        uniqueValues.add(String(value));
+        const stringValue = String(value);
+        if (!uniqueValuesArray.includes(stringValue)) {
+          uniqueValuesArray.push(stringValue);
+        }
       }
     });
     const xAxisConfig2 = (config as ExtendedChartConfig).xAxis as AxisConfig;
     if (xAxisConfig2) {
-      xAxisConfig2.data = Array.from(uniqueValues);
+      xAxisConfig2.data = uniqueValuesArray;
     }
   }
 
@@ -1187,15 +1255,21 @@ export class DataVisualizationService {
     const colorField = numericalFields[0].name;
 
     // 获取唯一的X和Y值
-    const xValueSet = new Set<string>();
-    const yValueSet = new Set<string>();
+    const xValueArray: string[] = [];
+    const yValueArray: string[] = [];
 
     for (const item of parsedData.data) {
-      xValueSet.add(String(item[xField]));
-      yValueSet.add(String(item[yField]));
+      const xValue = String(item[xField]);
+      const yValue = String(item[yField]);
+      if (!xValueArray.includes(xValue)) {
+        xValueArray.push(xValue);
+      }
+      if (!yValueArray.includes(yValue)) {
+        yValueArray.push(yValue);
+      }
     }
-    const xValues = Array.from(xValueSet);
-    const yValues = Array.from(yValueSet);
+    const xValues = xValueArray;
+    const yValues = yValueArray;
 
     // 定义X轴配置
     const xAxisConfig: AxisConfig = {

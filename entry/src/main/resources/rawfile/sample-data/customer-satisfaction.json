@@ -1,0 +1,10 @@
+[
+  {"category": "产品质量", "rating": 4.5, "responses": 1250},
+  {"category": "客户服务", "rating": 4.2, "responses": 980},
+  {"category": "价格合理", "rating": 3.8, "responses": 1100},
+  {"category": "配送速度", "rating": 4.1, "responses": 850},
+  {"category": "用户体验", "rating": 4.3, "responses": 920},
+  {"category": "售后服务", "rating": 3.9, "responses": 680},
+  {"category": "产品包装", "rating": 4.0, "responses": 450},
+  {"category": "网站易用", "rating": 3.7, "responses": 720}
+]
