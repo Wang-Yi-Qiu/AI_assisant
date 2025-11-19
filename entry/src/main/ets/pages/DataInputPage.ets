@@ -18,7 +18,7 @@ export struct DataInputPage {
   @State isLoading: boolean = false;
   @State loadingMessage: string = '正在生成图表...';
   @State tableData: TableRow[] = [];
-  @State headers: string[] = ['字段1', '字段2', '字段3']; // 默认表头
+  @State headers: string[] = ['类别 (X轴)', '数值 (Y轴)', '备注']; // 默认表头 - 更具语义和引导性
   @State rowCount: number = 3;
   @State columnCount: number = 3;
 
@@ -276,8 +276,8 @@ export struct DataInputPage {
       // 主要内容区域
       Scroll() {
         Column() {
-          // 操作提示
-          Text('请输入您的数据，支持数字和文本')
+          // 操作提示 - AI功能引导
+          Text('输入数据让AI为您智能生成精美图表')
             .fontSize(14)
             .fontWeight(FontWeight.Normal)
             .fontColor('#AAAAAA')
@@ -316,44 +316,104 @@ export struct DataInputPage {
 
           // 数据表格
           Column() {
-            // 表头
+            // 表头 - 带有类型图标的语义化表头
             Row() {
               ForEach(this.headers, (header: string, index?: number) => {
-                Text(header)
-                  .width('33%')
-                  .height(40)
-                  .fontSize(16)
-                  .fontWeight(FontWeight.Normal)
-                  .fontColor(Color.White)
-                  .textAlign(TextAlign.Center)
-                  .margin({ right: 8 })
+                Row() {
+                  // 类型图标
+                  if (index === 0) {
+                    Text('Aa')
+                      .fontSize(12)
+                      .fontColor('#AAAAAA')
+                      .fontWeight(FontWeight.Bold)
+                      .margin({ right: 6 })
+                  } else if (index === 1) {
+                    Text('#')
+                      .fontSize(14)
+                      .fontColor('#AAAAAA')
+                      .fontWeight(FontWeight.Bold)
+                      .margin({ right: 6 })
+                  } else {
+                    Text('📝')
+                      .fontSize(12)
+                      .margin({ right: 6 })
+                  }
+
+                  // 表头文字
+                  Text(header)
+                    .fontSize(16)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor(Color.White)
+                }
+                .width('33%')
+                .height(40)
+                .justifyContent(FlexAlign.Center)
+                .alignItems(VerticalAlign.Center)
+                .margin({ right: 8 })
               }, (header: string, index?: number) => (index ?? 0).toString())
             }
             .width('100%')
             .justifyContent(FlexAlign.Start)
             .margin({ bottom: 16 })
 
-            // 数据行
+            // 数据行 - 智能输入行为
             ForEach(this.tableData, (row: Map<string, string>, rowIndex?: number) => {
               Row() {
-                ForEach(this.headers, (header: string) => {
-                  TextInput({
-                    text: row.get(header) || '',
-                    placeholder: '请输入数据'
+                // 第一列：类别输入
+                TextInput({
+                  text: row.get(this.headers[0]) || '',
+                  placeholder: rowIndex === 0 ? '如：苹果' : '输入类别'
+                })
+                  .width('33%')
+                  .height(40)
+                  .fontSize(14)
+                  .backgroundColor('#1E2430')
+                  .fontColor(Color.White)
+                  .placeholderColor('#AAAAAA')
+                  .margin({ right: 8 })
+                  .borderRadius(6)
+                  .padding({ left: 12, right: 12 })
+                  .type(InputType.Normal)
+                  .onChange((value: string) => {
+                    this.updateCell(rowIndex as number, this.headers[0], value);
                   })
-                    .width('33%')
-                    .height(40)
-                    .fontSize(14)
-                    .backgroundColor('#1E2430')
-                    .fontColor(Color.White)
-                    .placeholderColor('#AAAAAA')
-                    .margin({ right: 8 })
-                    .borderRadius(6)
-                    .padding({ left: 12, right: 12 })
-                    .onChange((value: string) => {
-                      this.updateCell(rowIndex as number, header, value);
-                    })
-                }, (header: string) => header)
+
+                // 第二列：数值输入
+                TextInput({
+                  text: row.get(this.headers[1]) || '',
+                  placeholder: rowIndex === 0 ? '如：50' : '输入数值'
+                })
+                  .width('33%')
+                  .height(40)
+                  .fontSize(14)
+                  .backgroundColor('#1E2430')
+                  .fontColor(Color.White)
+                  .placeholderColor('#AAAAAA')
+                  .margin({ right: 8 })
+                  .borderRadius(6)
+                  .padding({ left: 12, right: 12 })
+                  .type(InputType.Number)
+                  .onChange((value: string) => {
+                    this.updateCell(rowIndex as number, this.headers[1], value);
+                  })
+
+                // 第三列：备注输入
+                TextInput({
+                  text: row.get(this.headers[2]) || '',
+                  placeholder: rowIndex === 0 ? '可选备注' : '备注信息'
+                })
+                  .width('33%')
+                  .height(40)
+                  .fontSize(14)
+                  .backgroundColor('#1E2430')
+                  .fontColor(Color.White)
+                  .placeholderColor('#AAAAAA')
+                  .borderRadius(6)
+                  .padding({ left: 12, right: 12 })
+                  .type(InputType.Normal)
+                  .onChange((value: string) => {
+                    this.updateCell(rowIndex as number, this.headers[2], value);
+                  })
               }
               .width('100%')
               .justifyContent(FlexAlign.Start)
@@ -365,20 +425,32 @@ export struct DataInputPage {
           .backgroundColor('transparent')
           .margin({ bottom: 24 })
 
-          // 生成按钮
-          Button('生成图表')
+          // AI 生成按钮 - 带渐变色和科技感
+          Button() {
+            Row() {
+              Text('✨')
+                .fontSize(18)
+                .margin({ right: 8 })
+              Text('AI 生成图表')
+                .fontSize(16)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(Color.White)
+            }
+            .justifyContent(FlexAlign.Center)
+            .alignItems(VerticalAlign.Center)
+          }
             .width('90%')
             .height(50)
-            .fontSize(16)
-            .fontWeight(FontWeight.Bold)
-            .backgroundColor('#0095FF')
-            .fontColor(Color.White)
-            .borderRadius(8)
+            .linearGradient({
+              direction: GradientDirection.Right,
+              colors: [['#0095FF', 0.0], ['#7B3FF2', 1.0]]
+            })
+            .borderRadius(12)
             .enabled(!this.isLoading && this.tableData.length > 0)
             .onClick(() => {
               this.generateChartFromData();
             })
-            .margin({ top: 24, bottom: 20 })
+            .margin({ top: 32, bottom: 20 })
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
