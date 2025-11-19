@@ -3,7 +3,7 @@
     "name": "entry",
     "type": "entry",
     "description": "$string:module_desc",
-    "mainElement": "EntryAbility",
+    "mainElement": "Index",
     "deviceTypes": [
       "phone"
     ],

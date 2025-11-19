@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schemas/insightSchema.json",
+  "title": "AIInsight",
+  "type": "object",
+  "description": "AI生成的洞察响应格式，用于图表数据和专注数据的智能分析",
+  "properties": {
+    "insightText": {
+      "type": "string",
+      "description": "AI生成的主要洞察文本，包含趋势分析、关键点、建议等内容",
+      "minLength": 1
+    },
+    "confidence": {
+      "type": "number",
+      "description": "洞察的置信度，范围 0-1",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "suggestions": {
+      "type": "array",
+      "description": "结构化的建议列表（可选）",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "建议类型（如 'action', 'warning', 'info'）"
+          },
+          "text": {
+            "type": "string",
+            "description": "建议文本"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["high", "medium", "low"],
+            "description": "建议优先级"
+          }
+        },
+        "required": ["type", "text"]
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "额外的元数据（可选）",
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "使用的AI模型名称"
+        },
+        "generatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "生成时间（ISO 8601格式）"
+        },
+        "dataHash": {
+          "type": "string",
+          "description": "输入数据的哈希值，用于缓存键"
+        }
+      }
+    }
+  },
+  "required": ["insightText"],
+  "additionalProperties": false
+}
+

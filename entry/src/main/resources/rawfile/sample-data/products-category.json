@@ -1,0 +1,8 @@
+[
+  {"category": "电子产品", "value": 35, "percentage": 35},
+  {"category": "服装", "value": 25, "percentage": 25},
+  {"category": "食品", "value": 20, "percentage": 20},
+  {"category": "家居", "value": 12, "percentage": 12},
+  {"category": "其他", "value": 8, "percentage": 8}
+]
+

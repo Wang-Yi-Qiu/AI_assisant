@@ -1,0 +1,667 @@
+/**
+ * 图表类型选择页面
+ * 支持多种图表类型的选择和预览，集成AI智能推荐
+ * @module ChartTypeSelectorPage
+ */
+
+import router from '@ohos.router';
+import { getOriginalData, setChartOption, setChartFromParsedData } from './ChartPage';
+import { generateChart, ChartConfig, UserData, CSVData } from '../utils/aiService';
+import { ParsedData } from '../utils/fileDataParser';
+import {
+  dataVisualizationService,
+  ChartType as DVChartType,
+  ChartRecommendation,
+  ChartTypeInfo,
+  DataType
+} from '../utils/dataVisualizationService';
+
+// 辅助函数：安全地访问UserData的data属性
+function getDataFromUserData(userData: UserData): object[] | null {
+  if (typeof userData === 'object' && userData !== null) {
+    const csvData = userData as CSVData;
+    return csvData.data || null;
+  }
+  return null;
+}
+
+// 图表类型定义（与数据可视化服务保持兼容）
+class ChartTypeSelectorInfo {
+  id: string = '';
+  name: string = '';
+  description: string = '';
+  icon: string = '';
+  example: string = '';
+  supported: boolean = true;
+  recommended?: boolean;
+  score?: number;
+  reason?: string;
+}
+
+// 定义增强用户数据接口
+interface EnhancedUserData {
+  originalData: UserData;
+  chartType: string;
+}
+
+@Entry
+@Component
+export struct ChartTypeSelectorPage {
+  @State chartTypes: ChartTypeSelectorInfo[] = [];
+  @State recommendations: ChartRecommendation[] = [];
+  @State selectedType: string = '';
+  @State isLoading: boolean = true;
+  @State errorMessage: string = '';
+  @State parsedData: ParsedData | null = null;
+  @State useLocalData: boolean = false;
+
+  aboutToAppear(): void {
+    console.info('[ChartTypeSelectorPage] 页面初始化');
+    this.loadChartTypes();
+  }
+
+  /**
+   * 加载图表类型（包含智能推荐）
+   */
+  async loadChartTypes(): Promise<void> {
+    try {
+      this.isLoading = true;
+      this.errorMessage = '';
+
+      // 检查是否有解析后的数据
+      const params = router.getParams() as any;
+      if (params && params.parsedData) {
+        this.parsedData = params.parsedData as ParsedData;
+        this.useLocalData = true;
+        console.info('[ChartTypeSelectorPage] 使用本地解析数据:', this.parsedData.fileName);
+
+        // 使用本地数据推荐图表类型
+        this.recommendations = dataVisualizationService.recommendChartTypesFromParsedData(this.parsedData);
+      } else {
+        // 获取原始数据
+        const originalData = getOriginalData();
+        if (!originalData) {
+          throw new Error('没有找到原始数据，请先上传数据');
+        }
+
+        console.info('[ChartTypeSelectorPage] 开始分析数据并推荐图表类型');
+
+        // 获取AI推荐的图表类型
+        this.recommendations = dataVisualizationService.recommendChartTypes(originalData);
+      }
+
+      console.info('[ChartTypeSelectorPage] 推荐结果:', this.recommendations.length);
+
+      // 获取所有支持的图表类型
+      const supportedTypes = dataVisualizationService.getSupportedChartTypes();
+
+      // 图标映射
+      const iconMap = new Map<string, string>([
+        ['bar', '📊'],
+        ['line', '📈'],
+        ['scatter', '⚡'],
+        ['pie', '🥧'],
+        ['area', '📉'],
+        ['heatmap', '🔥']
+      ]);
+
+      // 示例映射
+      const exampleMap = new Map<string, string>([
+        ['bar', '月度销售额对比'],
+        ['line', '股票价格走势'],
+        ['scatter', '身高体重关系'],
+        ['pie', '市场份额分布'],
+        ['area', '用户增长趋势'],
+        ['heatmap', '网站访问热力图']
+      ]);
+
+      // 转换为UI选项并标记推荐
+      this.chartTypes = supportedTypes.map((type, index: number): ChartTypeSelectorInfo => {
+        const recommendation = this.recommendations.find(r => r.type === type.type);
+
+        const chartTypeInfo = new ChartTypeSelectorInfo();
+        chartTypeInfo.id = type.type;
+        chartTypeInfo.name = type.name;
+        chartTypeInfo.description = type.description;
+        chartTypeInfo.icon = iconMap.get(type.type) || '📊';
+        chartTypeInfo.example = exampleMap.get(type.type) || '数据分析图表';
+        chartTypeInfo.supported = true;
+        chartTypeInfo.recommended = recommendation ? recommendation.confidence === 'high' : false;
+        chartTypeInfo.score = recommendation?.score;
+        chartTypeInfo.reason = recommendation?.reason;
+
+        return chartTypeInfo;
+      });
+
+      // 按推荐程度和分数排序
+      this.chartTypes.sort((a, b) => {
+        if (a.recommended && !b.recommended) return -1;
+        if (!a.recommended && b.recommended) return 1;
+        if (a.score && b.score) return b.score - a.score;
+        return 0;
+      });
+
+      console.info('[ChartTypeSelectorPage] 图表类型加载完成，共', this.chartTypes.length, '种');
+
+    } catch (error) {
+      console.error('[ChartTypeSelectorPage] 加载图表类型失败:', error);
+      this.errorMessage = error instanceof Error ? error.message : '加载失败';
+
+      // 降级处理：使用基本图表类型
+      this.fallbackToBasicTypes();
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  /**
+   * 降级处理：使用基本图表类型
+   */
+  private fallbackToBasicTypes(): void {
+    this.chartTypes = [
+      {
+        id: 'bar',
+        name: '柱状图',
+        description: '适合比较不同类别的数值大小',
+        icon: '📊',
+        example: '月度销售额对比',
+        supported: true
+      },
+      {
+        id: 'line',
+        name: '折线图',
+        description: '适合展示数据随时间的变化趋势',
+        icon: '📈',
+        example: '股票价格走势',
+        supported: true
+      },
+      {
+        id: 'pie',
+        name: '饼图',
+        description: '适合展示数据的占比关系',
+        icon: '🥧',
+        example: '市场份额分布',
+        supported: true
+      },
+      {
+        id: 'scatter',
+        name: '散点图',
+        description: '适合展示两个变量之间的关系',
+        icon: '⚡',
+        example: '身高体重关系',
+        supported: true
+      },
+      {
+        id: 'area',
+        name: '面积图',
+        description: '适合展示数据的累积变化',
+        icon: '📉',
+        example: '用户增长趋势',
+        supported: true
+      },
+      {
+        id: 'radar',
+        name: '雷达图',
+        description: '适合多维度数据的对比分析',
+        icon: '🎯',
+        example: '产品能力评估',
+        supported: true
+      }
+    ];
+    console.info('[ChartTypeSelectorPage] 使用降级方案，初始化基本图表类型');
+  }
+
+  /**
+   * 选择图表类型
+   */
+  selectChartType(chartType: ChartTypeSelectorInfo): void {
+    if (!chartType.supported) {
+      console.warn('[ChartTypeSelectorPage] 图表类型不支持:', chartType.id);
+      return;
+    }
+
+    this.selectedType = chartType.id;
+    console.info('[ChartTypeSelectorPage] 选择图表类型:', chartType.id, chartType.name);
+
+    // 如果有推荐信息，打印推荐理由
+    if (chartType.reason) {
+      console.info('[ChartTypeSelectorPage] 推荐理由:', chartType.reason);
+    }
+  }
+
+  /**
+   * 确认选择并生成图表（增强版本）
+   */
+  async confirmSelection(): Promise<void> {
+    if (!this.selectedType || this.isLoading) {
+      return;
+    }
+
+    try {
+      console.info('[ChartTypeSelectorPage] ========== 开始生成', this.selectedType, '图表 ==========');
+
+      this.isLoading = true;
+
+      let chartConfig: ChartConfig;
+
+      if (this.useLocalData && this.parsedData) {
+        // 使用本地解析的数据
+        console.info('[ChartTypeSelectorPage] 使用本地数据生成图表');
+
+        if (!this.parsedData) {
+          throw new Error('没有解析后的数据用于生成图表');
+        }
+
+        // 将选择的类型转换为枚举类型
+        const selectedDVType = this.selectedType as DVChartType;
+
+        // 直接使用本地数据生成图表配置
+        chartConfig = dataVisualizationService.createChartConfigFromParsedData(this.parsedData, selectedDVType);
+        console.info('[ChartTypeSelectorPage] 本地图表配置创建完成');
+
+        // 跳转到图表页面并设置本地数据
+        router.pushUrl({
+          url: 'pages/ChartPage'
+        });
+
+        // 设置图表配置
+        setChartFromParsedData(this.parsedData, selectedDVType);
+
+      } else {
+        // 使用原有逻辑
+        console.info('[ChartTypeSelectorPage] 使用原始数据生成图表');
+
+        // 检查是否有原始数据
+        const originalData = getOriginalData();
+        if (!originalData) {
+          throw new Error('没有原始数据用于生成图表');
+        }
+        const dataRows = getDataFromUserData(originalData);
+        if (!dataRows || dataRows.length === 0) {
+          throw new Error('没有原始数据用于生成图表');
+        }
+
+        // 尝试使用数据可视化服务生成图表
+        try {
+          // 将选择的类型转换为枚举类型
+          const selectedDVType = this.selectedType as DVChartType;
+
+          // 创建增强配置
+          const enhancedConfig: ChartConfig = dataVisualizationService.createEnhancedChartConfig(
+            originalData,
+            selectedDVType
+          );
+          console.info('[ChartTypeSelectorPage] 增强配置创建完成');
+
+          // 转换为ECharts配置
+          chartConfig = dataVisualizationService.convertToEChartsConfig(enhancedConfig, originalData);
+          console.info('[ChartTypeSelectorPage] ECharts配置转换完成');
+
+        } catch (dvError) {
+          console.warn('[ChartTypeSelectorPage] 数据可视化服务生成失败，回退到AI服务:', dvError);
+
+          // 降级到原有AI服务
+          const userData: UserData = {
+            originalData: originalData,
+          chartType: this.selectedType
+        } as EnhancedUserData;
+
+        chartConfig = await generateChart(userData);
+        console.info('[ChartTypeSelectorPage] AI服务生成图表配置成功');
+      }
+
+      // 设置图表配置
+      setChartOption(chartConfig, originalData);
+      console.info('[ChartTypeSelectorPage] 图表配置已设置，准备返回');
+
+      // 直接返回上一页（从ChartPage进入的）
+      router.back();
+
+      console.info('[ChartTypeSelectorPage] 已返回图表页面');
+
+    } catch (error) {
+      console.error('[ChartTypeSelectorPage] 生成图表失败:', error);
+
+      // 显示错误提示
+      this.errorMessage = `生成失败: ${error instanceof Error ? error.message : '未知错误'}`;
+
+      // 3秒后清除错误信息
+      setTimeout(() => {
+        this.errorMessage = '';
+      }, 3000);
+
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  /**
+   * 返回上一页
+   */
+  goBack(): void {
+    router.back();
+  }
+
+  /**
+   * 构建图表类型卡片
+   */
+  @Builder
+  ChartTypeCard(chartType: ChartTypeSelectorInfo): void {
+    Column() {
+      // 推荐标签和图标
+      Stack() {
+        // 图标
+        Text(chartType.icon)
+          .fontSize(32)
+          .margin({ top: 8 })
+
+        // 推荐标签
+        if (chartType.recommended) {
+          Text('推荐')
+            .fontSize(10)
+            .fontColor(Color.White)
+            .backgroundColor('#FF6B35')
+            .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+            .borderRadius(8)
+            .position({ x: 60, y: 0 })
+            .zIndex(1)
+        }
+      }
+      .alignContent(Alignment.TopEnd)
+      .width('100%')
+      .height(50)
+      .margin({ bottom: 8 })
+
+      // 名称
+      Text(chartType.name)
+        .fontSize(16)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(Color.White)
+        .textAlign(TextAlign.Center)
+        .width('100%')
+        .margin({ bottom: 6 })
+
+      // 描述
+      Text(chartType.description)
+        .fontSize(12)
+        .fontColor('#CCCCCC')
+        .textAlign(TextAlign.Center)
+        .width('100%')
+        .maxLines(2)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .margin({ bottom: 8 })
+
+      // 示例
+      Text(chartType.example)
+        .fontSize(10)
+        .fontColor('#999999')
+        .fontStyle(FontStyle.Italic)
+        .textAlign(TextAlign.Center)
+        .width('100%')
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+      // 推荐理由
+      if (chartType.reason && chartType.recommended) {
+        Text(chartType.reason)
+          .fontSize(9)
+          .fontColor('#007DFF')
+          .textAlign(TextAlign.Center)
+          .width('100%')
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .margin({ top: 4 })
+      }
+
+      // 分数显示（用于调试）
+      if (chartType.score) {
+        Text(`匹配度: ${(chartType.score * 100).toFixed(0)}%`)
+          .fontSize(8)
+          .fontColor('#666666')
+          .textAlign(TextAlign.Center)
+          .width('100%')
+          .margin({ top: 2 })
+      }
+    }
+    .width('48%')
+    .padding(12)
+    .backgroundColor(this.selectedType === chartType.id ? '#007DFF' : '#252525')
+    .borderRadius(12)
+    .border({
+      width: chartType.recommended ? 2 : 1,
+      color: this.selectedType === chartType.id ? '#007DFF' : (chartType.recommended ? '#FF6B35' : '#333333')
+    })
+    .onClick(() => {
+      this.selectChartType(chartType);
+    })
+    .animation({
+      duration: 200,
+      curve: Curve.EaseInOut
+    })
+  }
+
+  build() {
+    Column() {
+      // 顶部导航栏
+      Row() {
+        Button() {
+          Text('←')
+            .fontSize(24)
+            .fontColor(Color.White)
+        }
+        .type(ButtonType.Normal)
+        .backgroundColor(Color.Transparent)
+        .width(40)
+        .height(40)
+        .onClick(() => {
+          this.goBack();
+        })
+
+        Blank()
+
+        Text('选择图表类型')
+          .fontSize(20)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+
+        Blank()
+          .width(40)
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 15, right: 15 })
+      .justifyContent(FlexAlign.SpaceBetween)
+      .alignItems(VerticalAlign.Center)
+
+      // 可滚动内容区域
+      Scroll() {
+        Column() {
+          // 加载状态
+          if (this.isLoading) {
+            Column() {
+              Text('✨')
+                .fontSize(48)
+                .margin({ bottom: 15 })
+              LoadingProgress()
+                .width(40)
+                .height(40)
+                .margin({ bottom: 15 })
+              Text('正在分析数据...')
+                .fontSize(16)
+                .fontColor(Color.Gray)
+              Text('AI 正在为您的数据推荐最合适的图表类型')
+                .fontSize(14)
+                .fontColor('#CCCCCC')
+                .textAlign(TextAlign.Center)
+                .margin({ top: 8 })
+            }
+            .width('100%')
+            .height(300)
+            .justifyContent(FlexAlign.Center)
+            .alignItems(HorizontalAlign.Center)
+          }
+          // 错误状态
+          else if (this.errorMessage && this.chartTypes.length === 0) {
+            Column() {
+              Text('⚠️')
+                .fontSize(48)
+                .margin({ bottom: 15 })
+              Text(this.errorMessage)
+                .fontSize(16)
+                .fontColor('#FF6B6B')
+                .textAlign(TextAlign.Center)
+                .padding({ left: 20, right: 20 })
+                .margin({ bottom: 20 })
+              Button() {
+                Text('重试')
+                  .fontColor(Color.White)
+              }
+              .type(ButtonType.Normal)
+              .backgroundColor('#007DFF')
+              .onClick(() => this.loadChartTypes())
+            }
+            .width('100%')
+            .height(300)
+            .justifyContent(FlexAlign.Center)
+            .alignItems(HorizontalAlign.Center)
+          }
+          // 图表类型选择网格
+          else {
+            // AI 推荐标题
+            if (this.recommendations.length > 0) {
+              Column() {
+                Row() {
+                  Text('🎯')
+                    .fontSize(20)
+                    .margin({ right: 8 })
+                  Text('AI 推荐')
+                    .fontSize(18)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(Color.White)
+                }
+                .width('100%')
+                .alignItems(VerticalAlign.Center)
+                .margin({ bottom: 15 })
+
+                // 推荐的图表类型
+                Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.SpaceBetween }) {
+                  ForEach(
+                    this.chartTypes.filter(option => option.recommended).slice(0, 4),
+                    (option: ChartTypeSelectorInfo, index?: number) => {
+                      this.ChartTypeCard(option)
+                    }
+                  )
+                }
+                .width('100%')
+                .margin({ bottom: 25 })
+              }
+              .width('100%')
+              .padding({ bottom: 10 })
+            }
+
+            // 所有图表类型标题
+            Column() {
+              Row() {
+                Text('📊')
+                  .fontSize(20)
+                  .margin({ right: 8 })
+                Text('所有图表类型')
+                  .fontSize(18)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(Color.White)
+              }
+              .width('100%')
+              .alignItems(VerticalAlign.Center)
+              .margin({ bottom: 15 })
+
+              // 所有图表类型网格
+              Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.SpaceBetween }) {
+                ForEach(this.chartTypes, (option: ChartTypeSelectorInfo, index?: number) => {
+                  this.ChartTypeCard(option)
+                })
+              }
+              .width('100%')
+              .margin({ bottom: 30 })
+            }
+            .width('100%')
+
+            // 错误消息（如果有，但不影响显示）
+            if (this.errorMessage) {
+              Column() {
+                Text('⚠️')
+                  .fontSize(16)
+                  .margin({ bottom: 8 })
+                Text(this.errorMessage)
+                  .fontSize(14)
+                  .fontColor('#FF6B6B')
+                  .textAlign(TextAlign.Center)
+              }
+              .width('100%')
+              .margin({ bottom: 20 })
+            }
+
+            // 确认按钮
+            Button(this.selectedType ? '生成图表' : '请选择图表类型')
+              .width('80%')
+              .height(50)
+              .fontSize(16)
+              .fontWeight(FontWeight.Bold)
+              .backgroundColor(this.selectedType ? '#007DFF' : '#666666')
+              .fontColor(Color.White)
+              .borderRadius(25)
+              .enabled(this.selectedType !== '' && !this.isLoading)
+              .margin({ top: 20, bottom: 30 })
+              .onClick(() => {
+                this.confirmSelection();
+              })
+
+            // 底部提示
+            Column() {
+              Text('💡')
+                .fontSize(16)
+                .margin({ bottom: 8 })
+              Text('选择不同的图表类型来展示您的数据')
+                .fontSize(14)
+                .fontColor('#CCCCCC')
+                .textAlign(TextAlign.Center)
+              Text('AI 会根据您的数据特点自动推荐最适合的图表')
+                .fontSize(12)
+                .fontColor('#999999')
+                .textAlign(TextAlign.Center)
+                .margin({ top: 4 })
+            }
+            .width('100%')
+            .margin({ top: 20, bottom: 20 })
+          }
+        }
+        .width('100%')
+        .padding({ left: 15, right: 15, top: 20, bottom: 20 })
+      }
+      .layoutWeight(1)
+      .width('100%')
+      .scrollable(ScrollDirection.Vertical)
+      .scrollBar(BarState.Auto)
+      .edgeEffect(EdgeEffect.Spring)
+
+      // 底部加载遮罩
+      Column() {
+        LoadingProgress()
+          .width(30)
+          .height(30)
+          .margin({ bottom: 8 })
+        Text('正在生成图表...')
+          .fontSize(14)
+          .fontColor(Color.Gray)
+      }
+      .width('100%')
+      .padding(20)
+      .backgroundColor('#1C1C1C')
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+      .visibility(this.isLoading && this.chartTypes.length > 0 ? Visibility.Visible : Visibility.None)
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor('#1C1C1C')
+  }
+}

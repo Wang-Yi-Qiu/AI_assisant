@@ -12,11 +12,19 @@ import { ErrorHandler, AppError, ErrorCode } from './errorHandler';
 
 // 直接使用现有的错误代码，在ArkTS中不能动态扩展枚举
 
+import { Context } from '@kit.AbilityKit';
+
 export interface ExportOptions {
   filename?: string;
   format?: 'png' | 'pdf' | 'json';
   quality?: number; // 0-1 for PNG
   backgroundColor?: string;
+}
+
+// 文件信息接口
+interface FileInfo {
+  size: number;
+  lastModified: number;
 }
 
 export class FileManager {
@@ -28,12 +36,12 @@ export class FileManager {
    * @param config 图表配置
    * @param options 导出选项
    */
-  static async exportJson(config: ChartConfig, options: ExportOptions = {}): Promise<void> {
+  static async exportJson(config: ChartConfig, options: ExportOptions = {}, context?: Context): Promise<void> {
     try {
-      const filename = this.generateFilename(options.filename, 'json');
+      const filename = FileManager.generateFilename(options.filename, 'json');
       const jsonData = JSON.stringify(config, null, 2);
 
-      await this.saveTextFile(jsonData, filename, 'application/json');
+      await FileManager.saveTextFile(jsonData, filename, 'application/json', context);
     } catch (error) {
       throw ErrorHandler.handle(error, 'exportJson');
     }
@@ -44,9 +52,9 @@ export class FileManager {
    * @param dataUrl base64编码的图片数据
    * @param options 导出选项
    */
-  static async exportPng(dataUrl: string, options: ExportOptions = {}): Promise<void> {
+  static async exportPng(dataUrl: string, options: ExportOptions = {}, context?: Context): Promise<void> {
     try {
-      const filename = this.generateFilename(options.filename, 'png');
+      const filename = FileManager.generateFilename(options.filename, 'png');
 
       // 验证data URL格式
       if (!dataUrl.startsWith('data:image/')) {
@@ -68,28 +76,28 @@ export class FileManager {
       }
 
       // 将base64转换为ArrayBuffer
-      const buffer = this.base64ToArrayBuffer(base64Data);
+      const buffer = FileManager.base64ToArrayBuffer(base64Data);
 
-      await this.saveBinaryFile(buffer, filename, 'image/png');
+      await FileManager.saveBinaryFile(buffer, filename, 'image/png', context);
     } catch (error) {
       throw ErrorHandler.handle(error, 'exportPng');
     }
   }
 
   /**
-   * 导出图表为PDF文件（简化实现）
+   * 导出图表为PDF文件
+   * 由于HarmonyOS可能没有现成的PDF生成库，这里生成HTML文件
+   * 用户可以在浏览器中打开并打印为PDF
    * @param config 图表配置
    * @param options 导出选项
    */
-  static async exportPdf(config: ChartConfig, options: ExportOptions = {}): Promise<void> {
+  static async exportPdf(config: ChartConfig, options: ExportOptions = {}, context?: Context): Promise<void> {
     try {
-      const filename = this.generateFilename(options.filename, 'pdf');
+      // 生成HTML文件，用户可以在浏览器中打印为PDF
+      const filename = FileManager.generateFilename(options.filename, 'html');
+      const htmlContent = FileManager.generateHtmlForPdf(config);
 
-      // 简化的PDF导出：将JSON配置保存为PDF格式的文本文件
-      // 在实际项目中，这里应该使用PDF生成库
-      const pdfContent = this.generateSimplePdfContent(config);
-
-      await this.saveTextFile(pdfContent, filename, 'application/pdf');
+      await FileManager.saveTextFile(htmlContent, filename, 'text/html', context);
     } catch (error) {
       throw ErrorHandler.handle(error, 'exportPdf');
     }
@@ -100,16 +108,27 @@ export class FileManager {
    * @param content 文件内容
    * @param filename 文件名
    * @param mimeType MIME类型
+   * @param context Context 对象（可选，用于文件保存）
    */
-  private static async saveTextFile(content: string, filename: string, mimeType: string): Promise<void> {
+  private static async saveTextFile(content: string, filename: string, mimeType: string, context?: Context): Promise<void> {
     const documentSaveOptions = new filePicker.DocumentSaveOptions();
     documentSaveOptions.newFileNames = [filename];
-    documentSaveOptions.fileSuffixChoices = ['.json', '.pdf', '.txt'];
+    // 根据文件扩展名选择对应的文件类型
+    const ext = filename.split('.').pop()?.toLowerCase();
+    if (ext === 'html') {
+      documentSaveOptions.fileSuffixChoices = ['.html', '.htm'];
+    } else if (ext === 'pdf') {
+      documentSaveOptions.fileSuffixChoices = ['.pdf'];
+    } else {
+      documentSaveOptions.fileSuffixChoices = ['.json', '.txt', '.html'];
+    }
 
-    const documentPicker = new filePicker.DocumentViewPicker(documentSaveOptions);
+    const documentPicker = new filePicker.DocumentViewPicker();
 
     return new Promise<void>((resolve, reject) => {
-      documentPicker.save().then((uris: string[]) => {
+      // save 方法的签名是 save(options: DocumentSaveOptions)
+      // context 在 HarmonyOS 中通过系统自动获取，不需要显式传递
+      documentPicker.save(documentSaveOptions).then((uris: string[]) => {
         if (uris && uris.length > 0) {
           const uri = uris[0];
           if (!uri) {
@@ -165,16 +184,19 @@ export class FileManager {
    * @param buffer 文件数据
    * @param filename 文件名
    * @param mimeType MIME类型
+   * @param context Context 对象（可选，用于文件保存）
    */
-  private static async saveBinaryFile(buffer: ArrayBuffer, filename: string, mimeType: string): Promise<void> {
+  private static async saveBinaryFile(buffer: ArrayBuffer, filename: string, mimeType: string, context?: Context): Promise<void> {
     const documentSaveOptions = new filePicker.DocumentSaveOptions();
     documentSaveOptions.newFileNames = [filename];
     documentSaveOptions.fileSuffixChoices = ['.png', '.jpg', '.jpeg'];
 
-    const documentPicker = new filePicker.DocumentViewPicker(documentSaveOptions);
+    const documentPicker = new filePicker.DocumentViewPicker();
 
     return new Promise<void>((resolve, reject) => {
-      documentPicker.save().then((uris: string[]) => {
+      // save 方法的签名是 save(options: DocumentSaveOptions)
+      // context 在 HarmonyOS 中通过系统自动获取，不需要显式传递
+      documentPicker.save(documentSaveOptions).then((uris: string[]) => {
         if (uris && uris.length > 0) {
           const uri = uris[0];
           if (!uri) {
@@ -225,14 +247,14 @@ export class FileManager {
   private static generateFilename(customFilename?: string, extension?: string): string {
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
 
-    let filename = customFilename || this.DEFAULT_FILENAME;
+    let filename = customFilename || FileManager.DEFAULT_FILENAME;
 
     // 清理文件名，移除非法字符
     filename = filename.replace(/[<>:"/\\|?*]/g, '_');
 
     // 限制文件名长度
-    if (filename.length > this.MAX_FILENAME_LENGTH) {
-      filename = filename.substring(0, this.MAX_FILENAME_LENGTH);
+    if (filename.length > FileManager.MAX_FILENAME_LENGTH) {
+      filename = filename.substring(0, FileManager.MAX_FILENAME_LENGTH);
     }
 
     return `${filename}_${timestamp}.${extension || 'txt'}`;
@@ -276,45 +298,138 @@ export class FileManager {
   }
 
   /**
-   * 生成简化的PDF内容（实际项目中应使用专门的PDF库）
+   * 生成HTML内容，用于在浏览器中打印为PDF
    * @param config 图表配置
    */
-  private static generateSimplePdfContent(config: ChartConfig): string {
-    // 这是一个简化的PDF实现
-    // 在实际项目中，应该使用专业的PDF生成库
+  private static generateHtmlForPdf(config: ChartConfig): string {
     const title = config.title?.text || '图表';
     const jsonContent = JSON.stringify(config, null, 2);
+    const seriesTypes = config.series?.map(s => s.type).filter(Boolean).join(', ') || '未知';
+    const currentDate = new Date().toLocaleString('zh-CN');
 
-    return `%PDF-1.4
-1 0 obj
-<<
-/Title (${title})
-/Creator (AI Assistant HarmonyOS)
->>
-endobj
+    // 转义HTML特殊字符
+    const escapeHtml = (text: string): string => {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
 
-2 0 obj
-<<
-/Length ${jsonContent.length}
->>
-stream
-${jsonContent}
-endstream
-endobj
+    return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${escapeHtml(title)} - 图表报告</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        @media print {
+            body { margin: 0; padding: 20px; }
+            .no-print { display: none; }
+            .chart-container { page-break-inside: avoid; }
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #ffffff;
+        }
+        .header {
+            border-bottom: 2px solid #1976D2;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .title {
+            font-size: 28px;
+            font-weight: bold;
+            color: #1976D2;
+            margin: 0 0 10px 0;
+        }
+        .meta {
+            color: #666;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+        .chart-container {
+            width: 100%;
+            height: 600px;
+            margin: 30px 0;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #fafafa;
+        }
+        .config-section {
+            margin-top: 40px;
+            padding: 20px;
+            background-color: #f5f5f5;
+            border-radius: 8px;
+        }
+        .config-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        pre {
+            background-color: #ffffff;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            border: 1px solid #ddd;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .print-hint {
+            background-color: #E3F2FD;
+            border-left: 4px solid #1976D2;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .print-hint strong {
+            color: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 class="title">${escapeHtml(title)}</h1>
+        <div class="meta">
+            <div>图表类型: ${escapeHtml(seriesTypes)}</div>
+            <div>生成时间: ${escapeHtml(currentDate)}</div>
+            <div>来源: 鸿蒙 AI 智能数据可视化助手</div>
+        </div>
+    </div>
 
-xref
-0 3
-0000000000 65535 f
-0000000010 00000 n
-0000000079 00000 n
-trailer
-<<
-/Size 3
-/Root 1 0 R
->>
-startxref
-${jsonContent.length + 120}
-%%EOF`;
+    <div class="print-hint no-print">
+        <strong>提示：</strong>按 Ctrl+P (Windows) 或 Cmd+P (Mac) 打印此页面为PDF
+    </div>
+
+    <div class="chart-container">
+        <div id="chart" style="width: 100%; height: 100%;"></div>
+    </div>
+
+    <div class="config-section">
+        <div class="config-title">图表配置 (JSON)</div>
+        <pre>${escapeHtml(jsonContent)}</pre>
+    </div>
+
+    <script>
+        const chart = echarts.init(document.getElementById('chart'));
+        const option = ${jsonContent};
+        chart.setOption(option);
+        
+        // 窗口大小改变时重新调整图表
+        window.addEventListener('resize', function() {
+            chart.resize();
+        });
+    </script>
+</body>
+</html>`;
   }
 
   /**
@@ -336,13 +451,14 @@ ${jsonContent.length + 120}
    * 获取文件信息
    * @param uri 文件URI
    */
-  static async getFileInfo(uri: string): Promise<{ size: number; lastModified: number }> {
+  static async getFileInfo(uri: string): Promise<FileInfo> {
     try {
-      const stat = fs.statSync(uri);
-      return {
-        size: stat.size,
-        lastModified: stat.mtime
+      const fileStat = fs.statSync(uri);
+      const fileInfo: FileInfo = {
+        size: fileStat.size,
+        lastModified: fileStat.mtime
       };
+      return fileInfo;
     } catch (error) {
       throw ErrorHandler.handle(error, 'getFileInfo');
     }

@@ -1,7 +1,9 @@
-import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
+import { AbilityConstant, ConfigurationConstant, UIAbility, Want, common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { setAppConfig } from '../utils/config';
+import { setGlobalContext } from '../utils/sampleDataManager';
+import { AppLifecycleService } from '../utils/appLifecycleService';
 import util from '@ohos.util';
 
 const DOMAIN = 0x0000;
@@ -10,9 +12,17 @@ const DOMAIN = 0x0000;
 interface SupabaseConfig {
   supabaseUrl?: string;
   anonKey?: string;
+  supabaseAnonKey?: string; // 支持两种字段名
 }
 
 export default class EntryAbility extends UIAbility {
+  private lifecycleService: AppLifecycleService;
+
+  constructor() {
+    super();
+    this.lifecycleService = AppLifecycleService.getInstance();
+  }
+
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     try {
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
@@ -21,35 +31,66 @@ export default class EntryAbility extends UIAbility {
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
 
+    // 设置全局上下文，供样本数据加载使用
+    try {
+      setGlobalContext(this.context as common.UIAbilityContext);
+      hilog.info(DOMAIN, 'testTag', '%{public}s', 'Global context set for sample data loading');
+    } catch (err) {
+      hilog.warn(DOMAIN, 'testTag', 'Failed to set global context. Cause: %{public}s', JSON.stringify(err));
+    }
+
     // 尝试从 rawfile 读取 Supabase 配置（可选）
     try {
       const rm = this.context.resourceManager;
       const bytes: Uint8Array = rm.getRawFileContentSync('supabase.json');
       const decoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
+      // 使用 decode 方法
       const text: string = decoder.decode(bytes);
       const parsed = JSON.parse(text) as SupabaseConfig;
       const url: string | undefined = parsed?.supabaseUrl;
-      const anon: string | undefined = parsed?.anonKey;
+      const anon: string | undefined = parsed?.anonKey || parsed?.supabaseAnonKey;
       setAppConfig({
         supabaseUrl: url,
         supabaseAnonKey: anon,
       });
-      hilog.info(DOMAIN, 'testTag', '%{public}s', 'Loaded supabase config from rawfile');
+      hilog.info(DOMAIN, 'testTag', 'Loaded supabase config from rawfile. URL: %{public}s, Key length: %{public}d', 
+        url || 'undefined', anon ? anon.length : 0);
+      console.log('[EntryAbility] Supabase配置已加载:', {
+        url: url || 'undefined',
+        hasKey: !!anon,
+        keyLength: anon ? anon.length : 0
+      });
     } catch (e) {
       // 原则：配置缺失不崩溃，仅记录
       hilog.warn(DOMAIN, 'testTag', 'No supabase.json or parse error. Using defaults. Cause: %{public}s', JSON.stringify(e));
+    }
+
+    // 初始化应用生命周期管理
+    try {
+      this.lifecycleService.initialize(this.context as common.UIAbilityContext);
+      hilog.info(DOMAIN, 'testTag', 'App lifecycle service initialized');
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to initialize lifecycle service. Cause: %{public}s', JSON.stringify(err));
     }
   }
 
   onDestroy(): void {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
+
+    // 处理应用终止
+    try {
+      this.lifecycleService.onAppTerminate();
+      hilog.info(DOMAIN, 'testTag', 'App lifecycle service cleanup completed');
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to cleanup lifecycle service. Cause: %{public}s', JSON.stringify(err));
+    }
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
     // Main window is created, set main page for this ability
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
 
-    windowStage.loadContent('pages/Index', (err) => {
+    windowStage.loadContent('pages/SplashPage', (err) => {
       if (err.code) {
         hilog.error(DOMAIN, 'testTag', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
         return;
@@ -66,10 +107,24 @@ export default class EntryAbility extends UIAbility {
   onForeground(): void {
     // Ability has brought to foreground
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
+
+    // 手动调用生命周期服务的前台处理
+    try {
+      this.lifecycleService.onAppForeground();
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to handle foreground transition: %{public}s', JSON.stringify(err));
+    }
   }
 
   onBackground(): void {
     // Ability has back to background
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');
+
+    // 手动调用生命周期服务的后台处理
+    try {
+      this.lifecycleService.onAppBackground();
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to handle background transition: %{public}s', JSON.stringify(err));
+    }
   }
 }

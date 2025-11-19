@@ -1,0 +1,10 @@
+[
+  {"product": "智能手机", "sales": 45000, "profit": 12000, "market_share": 25.5},
+  {"product": "笔记本电脑", "sales": 38000, "profit": 9500, "market_share": 18.2},
+  {"product": "平板电脑", "sales": 32000, "profit": 8800, "market_share": 15.8},
+  {"product": "智能手表", "sales": 28000, "profit": 10200, "market_share": 12.3},
+  {"product": "无线耳机", "sales": 24000, "profit": 7200, "market_share": 10.1},
+  {"product": "游戏主机", "sales": 21000, "profit": 6300, "market_share": 8.9},
+  {"product": "智能音箱", "sales": 18000, "profit": 5400, "market_share": 6.2},
+  {"product": "数码相机", "sales": 15000, "profit": 4200, "market_share": 3.0}
+]

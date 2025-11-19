@@ -6,8 +6,9 @@
 import { fetchCharts, ChartRecordRow } from '../utils/supabaseClient';
 import { ChartConfig } from '../utils/aiService';
 import { setChartOption } from './ChartPage';
-import router from '@ohos.router';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { deviceAdapter, DeviceType } from '../utils/deviceAdapter';
+import { ErrorHandler } from '../utils/errorHandler';
 
 export interface ChartRecord {
   id: string;
@@ -23,6 +24,10 @@ struct HistoryPage {
   @State chartList: ChartRecord[] = [];
   @State isLoading: boolean = true;
   @State errorMessage: string = '';
+  // 设备适配
+  private layoutConfig = deviceAdapter.getLayoutConfig();
+  private deviceType = deviceAdapter.getDeviceType();
+  private needsFocus = deviceAdapter.needsFocusNavigation();
 
   aboutToAppear() {
     this.loadCharts();
@@ -33,12 +38,15 @@ struct HistoryPage {
       // 标题栏
       Row() {
         Text('历史记录')
-          .fontSize(20)
+          .fontSize(this.layoutConfig.fontSize.title)
           .fontWeight(FontWeight.Bold)
       }
       .width('100%')
-      .height(56)
-      .padding({ left: 16, right: 16 })
+      .height(this.deviceType === DeviceType.WEARABLE ? 48 : 56)
+      .padding({ 
+        left: this.layoutConfig.padding.medium, 
+        right: this.layoutConfig.padding.medium 
+      })
       .backgroundColor('#FFFFFF')
       .justifyContent(FlexAlign.Start)
       .alignItems(VerticalAlign.Center)
@@ -50,7 +58,7 @@ struct HistoryPage {
             .height(40)
             .margin({ bottom: 8 })
           Text('加载中...')
-            .fontSize(14)
+            .fontSize(this.layoutConfig.fontSize.medium)
             .fontColor('#666666')
         }
         .width('100%')
@@ -59,14 +67,17 @@ struct HistoryPage {
       } else if (this.errorMessage) {
         Column() {
           Text(this.errorMessage)
-            .fontSize(14)
+            .fontSize(this.layoutConfig.fontSize.medium)
             .fontColor('#F44336')
           Button('重试')
             .type(ButtonType.Normal)
-            .margin({ top: 16 })
+            .fontSize(this.layoutConfig.fontSize.medium)
+            .margin({ top: this.layoutConfig.spacing.medium })
             .onClick(() => {
               this.loadCharts();
             })
+            .focusable(this.needsFocus)
+            .focusOnTouch(this.needsFocus)
         }
         .width('100%')
         .height('100%')
@@ -74,18 +85,18 @@ struct HistoryPage {
       } else if (this.chartList.length === 0) {
         Column() {
           Text('暂无历史记录')
-            .fontSize(14)
+            .fontSize(this.layoutConfig.fontSize.medium)
             .fontColor('#999999')
           Text('去首页生成第一个图表吧！')
-            .fontSize(12)
+            .fontSize(this.layoutConfig.fontSize.small)
             .fontColor('#CCCCCC')
-            .margin({ top: 8 })
+            .margin({ top: this.layoutConfig.spacing.small })
         }
         .width('100%')
         .height('100%')
         .justifyContent(FlexAlign.Center)
       } else {
-        List({ space: 12 }) {
+        List({ space: this.layoutConfig.spacing.medium }) {
           ForEach(this.chartList, (item: ChartRecord) => {
             ListItem() {
               this.buildChartItem(item);
@@ -94,7 +105,11 @@ struct HistoryPage {
         }
         .width('100%')
         .layoutWeight(1)
-        .padding({ left: 16, right: 16, top: 8 })
+        .padding({ 
+          left: this.layoutConfig.padding.medium, 
+          right: this.layoutConfig.padding.medium, 
+          top: this.layoutConfig.spacing.small 
+        })
       }
     }
     .width('100%')
@@ -107,37 +122,41 @@ struct HistoryPage {
     Row() {
       Column() {
         Text(item.title || '未命名图表')
-          .fontSize(16)
+          .fontSize(this.layoutConfig.fontSize.large)
           .fontWeight(FontWeight.Medium)
-          .maxLines(1)
+          .maxLines(this.deviceType === DeviceType.WEARABLE ? 2 : 1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .alignSelf(ItemAlign.Start)
         Text(`类型: ${item.type || '未知'} | ${this.formatDate(item.createdAt)}`)
-          .fontSize(12)
+          .fontSize(this.layoutConfig.fontSize.small)
           .fontColor('#666666')
-          .margin({ top: 4 })
+          .margin({ top: this.layoutConfig.spacing.small })
           .alignSelf(ItemAlign.Start)
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
 
       Image($r('app.media.startIcon'))
-        .width(24)
-        .height(24)
+        .width(this.deviceType === DeviceType.WEARABLE ? 20 : 24)
+        .height(this.deviceType === DeviceType.WEARABLE ? 20 : 24)
     }
     .width('100%')
-    .padding(16)
+    .padding(this.layoutConfig.padding.medium)
     .backgroundColor('#FFFFFF')
     .borderRadius(8)
     .onClick(() => {
       setChartOption(item.chartConfig);
-      router.pushUrl({
+      // 使用 getUIContext().getRouter().pushUrl() 替代已弃用的 router.pushPathByName()
+      this.getUIContext().getRouter().pushUrl({
         url: 'pages/ChartPage'
       }).catch((err: BusinessError) => {
         console.error('跳转到图表页失败:', err);
         this.errorMessage = '无法打开图表页';
       });
     })
+    // 添加焦点支持（TV/车机）
+    .focusable(this.needsFocus)
+    .focusOnTouch(this.needsFocus)
   }
 
   async loadCharts() {
@@ -153,7 +172,9 @@ struct HistoryPage {
         chartConfig: chart.chart_config ?? chart.chartConfig ?? { series: [{ type: 'unknown' }] },
       }));
     } catch (error) {
-      this.errorMessage = error instanceof Error ? error.message : '加载失败，请稍后重试';
+      // 使用ErrorHandler处理错误，获取用户友好的错误消息
+      const appError = ErrorHandler.handle(error, 'loadCharts');
+      this.errorMessage = appError.userMessage || (error instanceof Error ? error.message : '加载失败，请稍后重试');
       console.error('加载历史记录失败:', error);
     } finally {
       this.isLoading = false;

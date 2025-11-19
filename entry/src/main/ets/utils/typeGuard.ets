@@ -10,7 +10,7 @@ interface EChartsTitle {
 
 interface EChartsSeriesItem {
   type: string;
-  data?: unknown[];
+  data?: (number | string | object)[];
 }
 
 interface ChartConfig {
@@ -29,13 +29,13 @@ interface CSVDataRow {
 
 interface KeyValueItem {
   name: string;
-  value: unknown;
+  value: string | number | boolean | object | null | undefined;
 }
 
 /**
  * 验证是否为ECharts标题配置
  */
-export function isEChartsTitle(obj: unknown): boolean {
+export function isEChartsTitle(obj: object | null | undefined): boolean {
   if (typeof obj !== 'object' || obj === null) {
     return false;
   }
@@ -47,7 +47,7 @@ export function isEChartsTitle(obj: unknown): boolean {
 /**
  * 验证是否为ECharts系列配置
  */
-export function isEChartsSeriesItem(obj: unknown): boolean {
+export function isEChartsSeriesItem(obj: object | null | undefined): boolean {
   if (typeof obj !== 'object' || obj === null) {
     return false;
   }
@@ -59,7 +59,7 @@ export function isEChartsSeriesItem(obj: unknown): boolean {
 /**
  * 验证是否为完整的ChartConfig
  */
-export function isChartConfig(obj: unknown): boolean {
+export function isChartConfig(obj: object | null | undefined): boolean {
   if (typeof obj !== 'object' || obj === null) {
     return false;
   }
@@ -89,7 +89,7 @@ export function isChartConfig(obj: unknown): boolean {
 /**
  * 验证是否为CSVData
  */
-export function isCSVData(obj: unknown): boolean {
+export function isCSVData(obj: object | null | undefined): boolean {
   if (typeof obj !== 'object' || obj === null) {
     return false;
   }
@@ -128,7 +128,7 @@ export function isCSVData(obj: unknown): boolean {
 /**
  * 验证是否为有效的UserData
  */
-export function isValidUserData(obj: unknown): boolean {
+export function isValidUserData(obj: object | string | null | undefined): boolean {
   // 字符串类型
   if (typeof obj === 'string') {
     return obj.length > 0 && obj.length <= 100000; // 限制最大长度
@@ -153,8 +153,8 @@ export function isValidUserData(obj: unknown): boolean {
  * 安全的类型转换
  */
 export function safeCast<T>(
-  value: unknown,
-  validator: (obj: unknown) => boolean,
+  value: object | string | number | boolean | null | undefined,
+  validator: (obj: object | string | number | boolean | null | undefined) => boolean,
   errorMessage?: string
 ): T {
   if (validator(value)) {
@@ -167,7 +167,7 @@ export function safeCast<T>(
 /**
  * 验证并清理字符串
  */
-export function validateAndCleanString(str: unknown): string {
+export function validateAndCleanString(str: string | number | boolean | object | null | undefined): string {
   if (typeof str !== 'string') {
     throw new Error('输入必须是字符串');
   }
@@ -207,14 +207,14 @@ export function isValidColor(color: string): boolean {
 /**
  * 验证数值
  */
-export function isValidNumber(value: unknown): boolean {
+export function isValidNumber(value: number | string | boolean | object | null | undefined): boolean {
   return typeof value === 'number' && !isNaN(value) && isFinite(value);
 }
 
 /**
  * 验证数值数组
  */
-export function isValidNumberArray(arr: unknown): boolean {
+export function isValidNumberArray(arr: object | null | undefined): boolean {
   if (!Array.isArray(arr)) {
     return false;
   }
@@ -231,7 +231,7 @@ export function isValidNumberArray(arr: unknown): boolean {
 /**
  * 验证字符串数组
  */
-export function isValidStringArray(arr: unknown): boolean {
+export function isValidStringArray(arr: object | null | undefined): boolean {
   if (!Array.isArray(arr)) {
     return false;
   }
@@ -245,20 +245,26 @@ export function isValidStringArray(arr: unknown): boolean {
   return true;
 }
 
+// 键值对项接口
+interface KeyValuePairItem {
+  name?: string | number | boolean | object | null | undefined;
+  value?: string | number | boolean | object | null | undefined;
+}
+
 /**
  * 验证对象键值对数组
  */
-export function isValidKeyValueArray(arr: unknown): boolean {
+export function isValidKeyValueArray(arr: object | null | undefined): boolean {
   if (!Array.isArray(arr)) {
     return false;
   }
 
   for (let i = 0; i < arr.length; i++) {
-    const item = arr[i];
+    const item: object | null | undefined = arr[i] as object | null | undefined;
     if (typeof item !== 'object' || item === null) {
       return false;
     }
-    const keyValueItem = item as { name?: unknown; value?: unknown };
+    const keyValueItem = item as KeyValuePairItem;
     if (!keyValueItem.name || typeof keyValueItem.name !== 'string') {
       return false;
     }
