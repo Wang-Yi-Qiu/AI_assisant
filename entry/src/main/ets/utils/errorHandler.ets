@@ -126,7 +126,7 @@ export class ErrorHandler {
    * @param context 错误发生的上下文
    * @returns 用户友好的错误消息
    */
-  static handle(error: unknown, context?: string): AppError {
+  static handle(error: Error | string | object, context?: string): AppError {
     // 记录详细错误信息用于调试
     console.error(`[ErrorHandler] ${context || 'Unknown Context'}:`, error);
 
@@ -189,7 +189,7 @@ export class ErrorHandler {
   /**
    * 判断是否为网络错误
    */
-  private static isNetworkError(error: unknown): boolean {
+  private static isNetworkError(error: Error | string | object): boolean {
     if (error instanceof Error) {
       const message = error.message;
       return message.includes('network') ||
@@ -205,9 +205,9 @@ export class ErrorHandler {
   /**
    * 判断是否为API错误
    */
-  private static isApiError(error: unknown): boolean {
+  private static isApiError(error: Error | string | object): boolean {
     if (typeof error === 'object' && error !== null) {
-      const errorObj = error as Record<string, unknown>;
+      const errorObj = error as Record<string, string | number>;
       return errorObj.status !== undefined ||
              errorObj.statusCode !== undefined ||
              errorObj.code !== undefined;
@@ -264,7 +264,7 @@ export class ErrorHandler {
   /**
    * 判断是否为文件相关错误
    */
-  private static isFileError(error: unknown): boolean {
+  private static isFileError(error: Error | string | object): boolean {
     if (error instanceof Error) {
       const message = error.message;
       return message.includes('file') ||

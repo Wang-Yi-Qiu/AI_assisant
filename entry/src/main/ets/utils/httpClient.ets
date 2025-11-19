@@ -319,28 +319,29 @@ class HttpClient {
 
     const result: HttpResponseHeaders = {};
 
-    // 使用类型断言和可选链操作符避免索引访问
-    const headerObj = header as Record<string, string>;
+    // 使用Object.entries和filter避免索引访问
+    const headerEntries = Object.entries(header);
 
-    const contentType = headerObj['content-type'];
-    if (contentType) {
-      result['content-type'] = contentType;
-    }
-    const contentLength = headerObj['content-length'];
-    if (contentLength) {
-      result['content-length'] = contentLength;
-    }
-    const authorization = headerObj['authorization'];
-    if (authorization) {
-      result['authorization'] = authorization;
-    }
-    const cacheControl = headerObj['cache-control'];
-    if (cacheControl) {
-      result['cache-control'] = cacheControl;
-    }
-    const etag = headerObj['etag'];
-    if (etag) {
-      result['etag'] = etag;
+    for (const [key, value] of headerEntries) {
+      if (typeof value === 'string') {
+        switch (key) {
+          case 'content-type':
+            result['content-type'] = value;
+            break;
+          case 'content-length':
+            result['content-length'] = value;
+            break;
+          case 'authorization':
+            result['authorization'] = value;
+            break;
+          case 'cache-control':
+            result['cache-control'] = value;
+            break;
+          case 'etag':
+            result['etag'] = value;
+            break;
+        }
+      }
     }
 
     return result;

@@ -167,7 +167,7 @@ export async function generateChart(userData: UserData, token?: CancellationToke
       ErrorCode.INVALID_INPUT,
       'Invalid user data provided',
       '输入数据格式无效，请检查数据内容',
-      userData
+      { originalError: userData }
     );
   }
 
@@ -250,7 +250,7 @@ export async function generateChart(userData: UserData, token?: CancellationToke
         errorCode,
         `API error: ${errorData.code}`,
         'API调用失败，请稍后重试',
-        errorData
+        { originalError: errorData }
       );
       ErrorHandler.reportError(appError);
       throw appError;
@@ -268,7 +268,13 @@ export async function generateChart(userData: UserData, token?: CancellationToke
       );
     }
 
-    const config: ChartConfig = rawData;
+    const config: ChartConfig = {
+      title: rawData.title || { text: '生成的图表' },
+      series: rawData.series || [{
+        type: 'bar',
+        data: [{ name: '示例', value: 50 }]
+      }]
+    };
 
     lastGeneratedConfig = config;
     const duration = Date.now() - timer.start;

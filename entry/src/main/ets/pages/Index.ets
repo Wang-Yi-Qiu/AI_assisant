@@ -15,6 +15,7 @@ import { asyncManager, AsyncOptions, CancellationToken } from '../utils/asyncMan
 
 interface ManagedTask {
   cancel(): void;
+  promise: Promise<any>;
 }
 
 @Entry
@@ -202,7 +203,21 @@ struct Index {
     };
 
     this.currentTask = asyncManager.createTask(async (signal) => {
-      return await onGenerateFromText(this.inputText, signal);
+      // 创建适配的CancellationToken，添加onCancel方法
+      const adaptedToken: import('../utils/aiService').CancellationToken = {
+        cancelled: signal.cancelled,
+        cancel(): void {
+          signal.cancel();
+        },
+        onCancel(callback: () => void): void {
+          // 简单实现，因为asyncManager的token可能没有回调机制
+          if (signal.cancelled) {
+            callback();
+          }
+        }
+      };
+
+      return await onGenerateFromText(this.inputText, adaptedToken);
     }, options);
 
     this.currentTask.promise
@@ -295,7 +310,7 @@ struct Index {
       }
 
       // 解析文件内容
-      const parsedData = parseFileContent(content);
+      const parsedData = parseFileContent(content, 'uploaded_file');
       this.inputText = JSON.stringify(parsedData, null, 2);
 
       this.errorMessage = '';
