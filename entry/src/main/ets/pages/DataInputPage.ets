@@ -279,25 +279,33 @@ export struct DataInputPage {
           // 操作提示
           Text('请输入您的数据，支持数字和文本')
             .fontSize(14)
-            .fontColor(Color.Gray)
-            .margin({ top: 20, bottom: 10 })
-            .textAlign(TextAlign.Center)
+            .fontWeight(FontWeight.Normal)
+            .fontColor('#AAAAAA')
+            .margin({ top: 12, bottom: 16 })
+            .textAlign(TextAlign.Start)
+            .width('90%')
 
           // 表格操作按钮
           Row() {
-            Button('添加行')
-              .fontSize(14)
-              .backgroundColor('#007DFF')
+            Button('+ 添加行')
+              .fontSize(16)
+              .fontWeight(FontWeight.Bold)
+              .backgroundColor('#0095FF')
               .fontColor(Color.White)
-              .margin({ right: 10 })
+              .borderRadius(8)
+              .padding({ left: 20, right: 20, top: 12, bottom: 12 })
               .onClick(() => {
                 this.addRow();
               })
 
-            Button('添加列')
-              .fontSize(14)
-              .backgroundColor('#007DFF')
+            Button('+ 添加列')
+              .fontSize(16)
+              .fontWeight(FontWeight.Bold)
+              .backgroundColor('#1E2430')
               .fontColor(Color.White)
+              .borderRadius(8)
+              .padding({ left: 20, right: 20, top: 12, bottom: 12 })
+              .margin({ left: 12 })
               .onClick(() => {
                 this.addColumn();
               })
@@ -311,36 +319,19 @@ export struct DataInputPage {
             // 表头
             Row() {
               ForEach(this.headers, (header: string, index?: number) => {
-                TextInput({ text: header })
-                  .width('120')
+                Text(header)
+                  .width('33%')
                   .height(40)
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Bold)
-                  .backgroundColor('#2D3748')
-                  .fontColor(Color.White)
-                  .margin({ right: 5 })
-                  .onChange((value: string) => {
-                    this.updateHeader(index as number, value);
-                  })
-              }, (header: string, index?: number) => (index ?? 0).toString())
-
-              // 删除列按钮
-              if (this.headers.length > 1) {
-                Button('×')
-                  .width(30)
-                  .height(30)
                   .fontSize(16)
-                  .backgroundColor('#FF4444')
+                  .fontWeight(FontWeight.Normal)
                   .fontColor(Color.White)
-                  .margin({ left: 5 })
-                  .onClick(() => {
-                    this.removeColumn(this.headers.length - 1);
-                  })
-              }
+                  .textAlign(TextAlign.Center)
+                  .margin({ right: 8 })
+              }, (header: string, index?: number) => (index ?? 0).toString())
             }
             .width('100%')
             .justifyContent(FlexAlign.Start)
-            .margin({ bottom: 10 })
+            .margin({ bottom: 16 })
 
             // 数据行
             ForEach(this.tableData, (row: Map<string, string>, rowIndex?: number) => {
@@ -350,31 +341,19 @@ export struct DataInputPage {
                     text: row.get(header) || '',
                     placeholder: '请输入数据'
                   })
-                    .width('120')
-                    .height(35)
-                    .fontSize(12)
-                    .backgroundColor('#252525')
+                    .width('33%')
+                    .height(40)
+                    .fontSize(14)
+                    .backgroundColor('#1E2430')
                     .fontColor(Color.White)
-                    .placeholderColor(Color.Gray)
-                    .margin({ right: 5 })
+                    .placeholderColor('#AAAAAA')
+                    .margin({ right: 8 })
+                    .borderRadius(6)
+                    .padding({ left: 12, right: 12 })
                     .onChange((value: string) => {
                       this.updateCell(rowIndex as number, header, value);
                     })
                 }, (header: string) => header)
-
-                // 删除行按钮
-                if (this.tableData.length > 1) {
-                  Button('×')
-                    .width(25)
-                    .height(25)
-                    .fontSize(12)
-                    .backgroundColor('#FF4444')
-                    .fontColor(Color.White)
-                    .margin({ left: 5 })
-                    .onClick(() => {
-                      this.removeRow(rowIndex as number);
-                    })
-                }
               }
               .width('100%')
               .justifyContent(FlexAlign.Start)
@@ -382,25 +361,24 @@ export struct DataInputPage {
             }, (row: Map<string, string>, rowIndex?: number) => (rowIndex ?? 0).toString())
           }
           .width('90%')
-          .padding(15)
-          .backgroundColor('#252525')
-          .borderRadius(10)
-          .margin({ bottom: 30 })
+          .padding(16)
+          .backgroundColor('transparent')
+          .margin({ bottom: 24 })
 
           // 生成按钮
           Button('生成图表')
-            .width('80%')
+            .width('90%')
             .height(50)
             .fontSize(16)
             .fontWeight(FontWeight.Bold)
-            .backgroundColor('#007DFF')
+            .backgroundColor('#0095FF')
             .fontColor(Color.White)
-            .borderRadius(25)
+            .borderRadius(8)
             .enabled(!this.isLoading && this.tableData.length > 0)
             .onClick(() => {
               this.generateChartFromData();
             })
-            .margin({ bottom: 20 })
+            .margin({ top: 24, bottom: 20 })
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
@@ -418,15 +396,15 @@ export struct DataInputPage {
             .margin({ bottom: 10 })
           Text(this.loadingMessage)
             .fontSize(14)
-            .fontColor(Color.Gray)
+            .fontColor('#AAAAAA')
         }
         .width('100%')
         .padding(20)
-        .backgroundColor('#1C1C1C')
+        .backgroundColor('#121826')
       }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#1C1C1C')
+    .backgroundColor('#121826')
   }
 }
