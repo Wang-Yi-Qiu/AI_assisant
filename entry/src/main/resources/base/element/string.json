@@ -15,6 +15,14 @@
     {
       "name": "permission_reason_read_write_download",
       "value": "需要读取用户上传的数据文件"
+    },
+    {
+      "name": "PomodoroFormAbility_desc",
+      "value": "番茄钟桌面卡片，显示计时状态和快捷操作"
+    },
+    {
+      "name": "PomodoroFormAbility_label",
+      "value": "番茄钟"
     }
   ]
 }

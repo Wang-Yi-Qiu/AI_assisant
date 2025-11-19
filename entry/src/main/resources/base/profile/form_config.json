@@ -1,0 +1,20 @@
+{
+  "forms": [
+    {
+      "name": "SimplePomodoroForm",
+      "displayName": "番茄钟",
+      "description": "番茄钟服务卡片，显示当前计时状态和快捷操作",
+      "src": "./ets/form/ui/PomodoroTimerCard.ets",
+      "uiSyntax": "arkts",
+      "colorMode": "auto",
+      "isDefault": true,
+      "supportDimensions": [
+        "2*2"
+      ],
+      "defaultDimension": "2*2",
+      "updateEnabled": true,
+      "scheduledUpdateTime": "10:30",
+      "updateDuration": 1
+    }
+  ]
+}

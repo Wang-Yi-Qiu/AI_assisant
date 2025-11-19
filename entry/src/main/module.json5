@@ -59,6 +59,30 @@
             "resource": "$profile:backup_config"
           }
         ],
+      },
+      {
+        "name": "PomodoroFormAbility",
+        "srcEntry": "./ets/formability/PomodoroFormAbility.ets",
+        "label": "$string:PomodoroFormAbility_label",
+        "description": "$string:PomodoroFormAbility_desc",
+        "type": "form",
+        "exported": true,
+        "skills": [
+          {
+            "entities": [
+              "entity.system.form"
+            ],
+            "actions": [
+              "ohos.want.action.form"
+            ]
+          }
+        ],
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:form_config"
+          }
+        ]
       }
     ]
   }

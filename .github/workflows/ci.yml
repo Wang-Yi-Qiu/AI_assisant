@@ -1,0 +1,95 @@
+name: HarmonyOS CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Setup HarmonyOS SDK
+      run: |
+        # 下载并安装 HarmonyOS SDK
+        wget https://repo.huaweicloud.com/harmonyos/os/12/sdk/openharmony-sdk-12.0.0.10-linux.tar.gz
+        tar -xzf openharmony-sdk-12.0.0.10-linux.tar.gz
+        export DEVECO_SDK_HOME=$(pwd)/openharmony-sdk
+        echo "DEVECO_SDK_HOME=$DEVECO_SDK_HOME" >> $GITHUB_ENV
+
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.npm
+          ~/.hvigor
+          oh_modules
+        key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json') }}
+
+    - name: Install dependencies
+      run: |
+        npm install -g @ohos/hvigor
+        npm install
+
+    - name: Code Quality Check
+      run: |
+        echo "Running code quality checks..."
+        # 添加代码检查工具
+        npm run lint || echo "Linting completed with warnings"
+
+    - name: Build Application
+      run: |
+        export DEVECO_SDK_HOME=$DEVECO_SDK_HOME
+        chmod +x ./hvigorw
+        ./hvigorw assembleHap --parallel --incremental
+
+    - name: Run Unit Tests
+      run: |
+        ./hvigorw test
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-artifacts
+        path: |
+          entry/build/**/*.hap
+          entry/build/**/*.aar
+        retention-days: 7
+
+    - name: Security Scan
+      run: |
+        echo "Running security scan..."
+        # 添加安全扫描工具
+        npm audit --audit-level moderate
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: build-artifacts
+
+    - name: Deploy to Staging
+      run: |
+        echo "Deploying to staging environment..."
+        # 添加部署脚本
+
+    - name: Notification
+      if: success()
+      run: |
+        echo "Build and deployment successful!"

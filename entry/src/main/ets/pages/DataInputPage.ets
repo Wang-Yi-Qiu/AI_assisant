@@ -259,7 +259,7 @@ export struct DataInputPage {
         Blank()
 
         Text('手动输入数据')
-          .fontSize(20)
+          .fontSize(18)
           .fontWeight(FontWeight.Bold)
           .fontColor(Color.White)
 
@@ -268,10 +268,10 @@ export struct DataInputPage {
       }
       .width('100%')
       .height(56)
-      .padding({ left: 15, right: 15 })
+      .padding({ left: 20, right: 20, top: 16, bottom: 16 })
       .justifyContent(FlexAlign.SpaceBetween)
       .alignItems(VerticalAlign.Center)
-      .backgroundColor('#1C1C1C')
+      .backgroundColor('#121826')
 
       // 主要内容区域
       Scroll() {

@@ -4,7 +4,8 @@
  * 对隐私和离线能力要求高，性能好，可控性强
  */
 
-import picker from '@ohos.file.picker';
+import { ChartCacheManager } from '../cache/ChartCacheManager';
+import picker from '@ohos/file.picker';
 import fs from '@ohos.file.fs';
 import { util } from '@kit.ArkTS';
 
@@ -14,6 +15,14 @@ export interface LocalChartData {
   rows: string[][];
   numericColumns: number[];
   categoryColumns: number[];
+  fileName?: string;
+  data?: string[][];
+  metadata?: {
+    title?: string;
+    description?: string;
+    tags?: string[];
+    createdAt?: string;
+  };
 }
 
 // 图表配置类型
@@ -73,8 +82,11 @@ export type ExportFormat = 'png' | 'jpg' | 'pdf' | 'json' | 'csv';
  */
 export class LocalChartService {
   private static instance: LocalChartService;
+  private cacheManager: ChartCacheManager;
 
-  private constructor() {}
+  private constructor() {
+    this.cacheManager = ChartCacheManager.getInstance();
+  }
 
   /**
    * 获取单例实例
@@ -84,6 +96,13 @@ export class LocalChartService {
       LocalChartService.instance = new LocalChartService();
     }
     return LocalChartService.instance;
+  }
+
+  /**
+   * 初始化缓存管理器
+   */
+  public async initialize(): Promise<void> {
+    await this.cacheManager.initialize();
   }
 
   /**
@@ -283,169 +302,726 @@ export class LocalChartService {
   }
 
   /**
-   * 智能推荐图表类型
+   * 图表推荐结果接口
    */
-  public recommendChartType(data: LocalChartData): 'bar' | 'line' | 'pie' | 'scatter' {
-    const headers = data.headers;
-    const rows = data.rows;
-    const numericColumns = data.numericColumns;
-    const categoryColumns = data.categoryColumns;
-
-    // 如果只有一个数值列且有分类列，推荐饼图
-    if (numericColumns.length === 1 && categoryColumns.length >= 1) {
-      const uniqueCategories = new Set(rows.map(row => row[categoryColumns[0]]));
-      if (uniqueCategories.size <= 10) { // 分类数量较少时适合饼图
-        return 'pie';
-      }
-    }
-
-    // 如果有两个数值列，推荐散点图
-    if (numericColumns.length >= 2) {
-      return 'scatter';
-    }
-
-    // 如果有多个数值列，推荐柱状图
-    if (numericColumns.length >= 2) {
-      return 'bar';
-    }
-
-    // 如果有连续的时间或有序数据，推荐折线图
-    if (categoryColumns.length >= 1 && numericColumns.length === 1) {
-      return 'line';
-    }
-
-    // 默认推荐柱状图
-    return 'bar';
+  export interface ChartRecommendation {
+    type: 'bar' | 'line' | 'pie' | 'scatter';
+    score: number;
+    reason: string;
+    confidence: 'high' | 'medium' | 'low';
   }
 
   /**
-   * 生成图表配置
+   * 智能推荐图表类型（增强版，支持缓存）
    */
-  public generateChartConfig(data: LocalChartData, chartType?: string): LocalChartConfig {
+  public recommendChartTypes(data: LocalChartData): ChartRecommendation[] {
+    // 生成缓存键
+    const cacheKey = this.cacheManager.generateCacheKey(data, 'recommendations');
+
+    // 尝试从缓存获取
+    const cachedRecommendations = this.cacheManager.get(cacheKey);
+    if (cachedRecommendations) {
+      console.info('[LocalChartService] 推荐结果缓存命中');
+      return cachedRecommendations;
+    }
+
+    // 计算推荐结果
+    const recommendations = this.computeRecommendations(data);
+
+    // 存入缓存
+    this.cacheManager.set(cacheKey, recommendations, 10 * 60 * 1000); // 10分钟TTL
+
+    return recommendations;
+  }
+
+  /**
+   * 计算推荐结果（核心算法）
+   */
+  private computeRecommendations(data: LocalChartData): ChartRecommendation[] {
+    const recommendations: ChartRecommendation[] = [];
     const headers = data.headers;
     const rows = data.rows;
     const numericColumns = data.numericColumns;
     const categoryColumns = data.categoryColumns;
 
-    const type = (chartType || this.recommendChartType(data)) as 'bar' | 'line' | 'pie' | 'scatter';
+    // 数据质量评估
+    const dataQuality = this.assessDataQuality(data);
 
-    const xAxisConfig: XAxisConfig = {
-      type: 'category',
-      name: categoryColumns.length > 0 ? headers[categoryColumns[0]] : 'X轴'
-    };
+    // 柱状图推荐
+    if (numericColumns.length >= 1 && categoryColumns.length >= 1) {
+      let score = 0.7;
+      let reason = '适合比较不同类别的数值大小';
+      let confidence: 'high' | 'medium' | 'low' = 'medium';
 
-    const yAxisConfig: YAxisConfig = {
-      type: 'value',
-      name: numericColumns.length > 0 ? headers[numericColumns[0]] : 'Y轴'
-    };
-
-    const legendConfig: LegendConfig = {
-      show: false,
-      data: []
-    };
-
-    const tooltipConfig: TooltipConfig = {
-      trigger: type === 'pie' ? 'item' : 'axis'
-    };
-
-    const config: LocalChartConfig = {
-      title: '数据图表',
-      type: type,
-      xAxis: xAxisConfig,
-      yAxis: yAxisConfig,
-      series: [],
-      legend: legendConfig,
-      tooltip: tooltipConfig
-    };
-
-    if (type === 'pie') {
-      // 饼图配置
-      const categoryCol = categoryColumns[0] || 0;
-      const numericCol = numericColumns[0] || 1;
-
-      const categoryData: Map<string, number> = new Map<string, number>();
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        const category = row[categoryCol];
-        const value = Number(row[numericCol]) || 0;
-        const currentValue = categoryData.get(category) || 0;
-        categoryData.set(category, currentValue + value);
+      if (numericColumns.length > 1) {
+        score = 0.9;
+        reason = '有多个数值列，柱状图可以清晰对比不同指标';
+        confidence = 'high';
+      } else if (dataQuality.categoryUniqueness > 0.8) {
+        score = 0.85;
+        reason = '分类数据多样化，柱状图对比效果明显';
+        confidence = 'high';
       }
 
-      const pieDataArray: PieData[] = [];
-      categoryData.forEach((value, name) => {
-        const pieItem: PieData = {
-          name: name,
-          value: value
-        };
-        pieDataArray.push(pieItem);
+      recommendations.push({
+        type: 'bar',
+        score: score,
+        reason: reason,
+        confidence: confidence
+      });
+    }
+
+    // 折线图推荐
+    if (categoryColumns.length >= 1 && numericColumns.length >= 1) {
+      let score = 0.6;
+      let reason = '适合展示数据变化趋势';
+      let confidence: 'high' | 'medium' | 'low' = 'low';
+
+      // 检查是否为时间序列数据
+      const categoryCol = categoryColumns[0];
+      const isTimeData = this.isTimeSeriesData(rows.map(row => row[categoryCol]));
+
+      if (isTimeData) {
+        score = 0.95;
+        reason = '检测到时间序列数据，折线图最适合展示趋势变化';
+        confidence = 'high';
+      } else if (this.isSequentialData(rows.map(row => row[categoryCol]))) {
+        score = 0.8;
+        reason = '数据具有顺序性，折线图可以展示变化规律';
+        confidence = 'medium';
+      } else if (rows.length > 10) {
+        score = 0.75;
+        reason = '数据点较多，折线图可以清晰展示变化趋势';
+        confidence = 'medium';
+      }
+
+      recommendations.push({
+        type: 'line',
+        score: score,
+        reason: reason,
+        confidence: confidence
+      });
+    }
+
+    // 饼图推荐
+    if (numericColumns.length === 1 && categoryColumns.length >= 1) {
+      const categoryCol = categoryColumns[0];
+      const uniqueCategories = new Set(rows.map(row => row[categoryCol]));
+      const categoryCount = uniqueCategories.size;
+
+      let score = 0;
+      let reason = '';
+      let confidence: 'high' | 'medium' | 'low' = 'low';
+
+      if (categoryCount <= 6) {
+        score = 0.9;
+        reason = `分类数量适中（${categoryCount}个），饼图可以清晰展示占比关系`;
+        confidence = 'high';
+      } else if (categoryCount <= 10) {
+        score = 0.75;
+        reason = `分类数量较多（${categoryCount}个），饼图仍可展示占比`;
+        confidence = 'medium';
+      } else if (categoryCount <= 15) {
+        score = 0.5;
+        reason = `分类数量很多（${categoryCount}个），饼图可能显得拥挤`;
+        confidence = 'low';
+      }
+
+      // 检查数据是否适合展示占比
+      if (score > 0) {
+        const numericCol = numericColumns[0];
+        const allPositive = rows.every(row => Number(row[numericCol]) >= 0);
+        if (allPositive) {
+          recommendations.push({
+            type: 'pie',
+            score: score,
+            reason: reason,
+            confidence: confidence
+          });
+        }
+      }
+    }
+
+    // 散点图推荐
+    if (numericColumns.length >= 2) {
+      let score = 0.8;
+      let reason = '适合分析两个数值变量之间的关系';
+      let confidence: 'high' | 'medium' | 'low' = 'medium';
+
+      if (numericColumns.length >= 3) {
+        score = 0.85;
+        reason = '有多个数值列，散点图可以探索变量间的相关性';
+        confidence = 'high';
+      }
+
+      if (dataQuality.dataVariance > 0.7) {
+        score += 0.1;
+        reason += '，数据分布差异明显';
+      }
+
+      recommendations.push({
+        type: 'scatter',
+        score: score,
+        reason: reason,
+        confidence: confidence
+      });
+    }
+
+    // 按分数排序
+    recommendations.sort((a, b) => b.score - a.score);
+    return recommendations;
+  }
+
+  /**
+   * 获取最佳推荐图表类型
+   */
+  public recommendChartType(data: LocalChartData): 'bar' | 'line' | 'pie' | 'scatter' {
+    const recommendations = this.recommendChartTypes(data);
+    return recommendations.length > 0 ? recommendations[0].type : 'bar';
+  }
+
+  /**
+   * 批量获取推荐（支持缓存）
+   */
+  public async getBatchRecommendations(datasets: LocalChartData[]): Promise<Map<number, ChartRecommendation[]>> {
+    const results = new Map<number, ChartRecommendation[]>();
+    const cacheKeys: string[] = [];
+    const uncachedIndices: number[] = [];
+
+    // 收集缓存键和未缓存的数据索引
+    datasets.forEach((data, index) => {
+      const cacheKey = this.cacheManager.generateCacheKey(data, 'recommendations');
+      cacheKeys.push(cacheKey);
+
+      const cached = this.cacheManager.get(cacheKey);
+      if (cached) {
+        results.set(index, cached);
+      } else {
+        uncachedIndices.push(index);
+      }
+    });
+
+    // 计算未缓存的推荐
+    if (uncachedIndices.length > 0) {
+      const batchPromises = uncachedIndices.map(index => {
+        const data = datasets[index];
+        const recommendations = this.computeRecommendations(data);
+
+        // 存入缓存
+        this.cacheManager.set(cacheKeys[index], recommendations, 10 * 60 * 1000);
+
+        results.set(index, recommendations);
       });
 
-      const pieSeries: SeriesData = {
-        name: headers[numericCol],
-        type: 'pie',
-        data: pieDataArray as Object
-      };
-      config.series.push(pieSeries);
+      await Promise.all(batchPromises);
+    }
 
-    } else if (type === 'scatter') {
-      // 散点图配置
-      const xCol = numericColumns[0];
-      const yCol = numericColumns.length > 1 ? numericColumns[1] : categoryColumns[0];
+    return results;
+  }
 
-      const scatterData: number[][] = [];
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        const point = [
-          Number(row[xCol]) || 0,
-          Number(row[yCol]) || 0
-        ];
-        scatterData.push(point);
+  /**
+   * 评估数据质量
+   */
+  private assessDataQuality(data: LocalChartData): {
+    completeness: number;
+    categoryUniqueness: number;
+    dataVariance: number;
+    rowDensity: number;
+  } {
+    const rows = data.rows;
+    const headers = data.headers;
+    const numericColumns = data.numericColumns;
+    const categoryColumns = data.categoryColumns;
+
+    // 完整性评估
+    let totalCells = rows.length * headers.length;
+    let validCells = 0;
+    rows.forEach(row => {
+      row.forEach(cell => {
+        if (cell && cell.trim() !== '') {
+          validCells++;
+        }
+      });
+    });
+    const completeness = validCells / totalCells;
+
+    // 分类数据唯一性
+    let categoryUniqueness = 0;
+    if (categoryColumns.length > 0) {
+      const categoryCol = categoryColumns[0];
+      const uniqueCategories = new Set(rows.map(row => row[categoryCol]));
+      categoryUniqueness = uniqueCategories.size / rows.length;
+    }
+
+    // 数值数据方差
+    let dataVariance = 0;
+    if (numericColumns.length > 0) {
+      const numericCol = numericColumns[0];
+      const values = rows.map(row => Number(row[numericCol]) || 0);
+      const mean = values.reduce((a, b) => a + b, 0) / values.length;
+      const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+      const stdDev = Math.sqrt(variance);
+      dataVariance = Math.min(stdDev / mean, 1); // 标准化到0-1
+    }
+
+    // 行密度（数据量评估）
+    const optimalRows = 50; // 理想的数据行数
+    const rowDensity = Math.min(rows.length / optimalRows, 1);
+
+    return {
+      completeness,
+      categoryUniqueness,
+      dataVariance,
+      rowDensity
+    };
+  }
+
+  /**
+   * 检查是否为时间序列数据
+   */
+  private isTimeSeriesData(categoryValues: string[]): boolean {
+    // 检查常见的日期格式
+    const datePatterns = [
+      /^\d{4}-\d{1,2}-\d{1,2}$/, // YYYY-MM-DD
+      /^\d{1,2}\/\d{1,2}\/\d{4}$/, // MM/DD/YYYY
+      /^\d{4}年\d{1,2}月\d{1,2}日$/, // 中文日期
+      /^[一二三四五六七八九十]+月\d{1,2}日?$/, // 中文月份
+      /^[A-Za-z]+ \d{1,2}, \d{4}$/, //英文日期
+    ];
+
+    // 检查时间格式
+    const timePatterns = [
+      /^\d{1,2}:\d{2}$/, // HH:MM
+      /^\d{1,2}:\d{2}:\d{2}$/, // HH:MM:SS
+    ];
+
+    let dateMatchCount = 0;
+    let timeMatchCount = 0;
+    let sequentialCount = 0;
+
+    for (let i = 0; i < categoryValues.length; i++) {
+      const value = categoryValues[i];
+
+      // 检查日期格式
+      if (datePatterns.some(pattern => pattern.test(value))) {
+        dateMatchCount++;
       }
 
-      const scatterSeries: SeriesData = {
-        name: `${headers[xCol]} vs ${headers[yCol]}`,
-        type: 'scatter',
-        data: scatterData as Object
-      };
-      config.series.push(scatterSeries);
-
-      config.xAxis.type = 'value';
-
-    } else {
-      // 柱状图和折线图配置
-      const categoryCol = categoryColumns[0] || 0;
-
-      // X轴数据
-      config.xAxis.data = rows.map(row => row[categoryCol]);
-
-      // Y轴系列数据
-      for (let i = 0; i < numericColumns.length; i++) {
-        const col = numericColumns[i];
-        const seriesData = rows.map(row => Number(row[col]) || 0);
-        const seriesItem: SeriesData = {
-          name: headers[col],
-          type: type,
-          data: seriesData as Object
-        };
-        config.series.push(seriesItem);
+      // 检查时间格式
+      if (timePatterns.some(pattern => pattern.test(value))) {
+        timeMatchCount++;
       }
 
-      config.legend.show = numericColumns.length > 1;
-      const legendDataArray: string[] = [];
-      for (let i = 0; i < numericColumns.length; i++) {
-        legendDataArray.push(headers[numericColumns[i]]);
+      // 检查序列性（如1月、2月、3月或第1季度、第2季度等）
+      if (this.isSequentialTerm(value)) {
+        sequentialCount++;
       }
-      config.legend.data = legendDataArray;
+    }
+
+    const totalMatches = dateMatchCount + timeMatchCount + sequentialCount;
+    const ratio = totalMatches / categoryValues.length;
+
+    return ratio > 0.6; // 如果超过60%的数据匹配时间模式
+  }
+
+  /**
+   * 检查是否为序列数据
+   */
+  private isSequentialData(categoryValues: string[]): boolean {
+    let sequentialCount = 0;
+
+    for (let i = 0; i < categoryValues.length; i++) {
+      if (this.isSequentialTerm(categoryValues[i])) {
+        sequentialCount++;
+      }
+    }
+
+    return (sequentialCount / categoryValues.length) > 0.5;
+  }
+
+  /**
+   * 检查单个值是否为序列术语
+   */
+  private isSequentialTerm(value: string): boolean {
+    const sequentialPatterns = [
+      /^第?[一二三四五六七八九十\d]+[个]?季度?$/, // 季度
+      /^[一二三四五六七八九十]+月$/, // 中文月份
+      /^\d{1,2}月$/, // 数字月份
+      /^周[一二三四五六日天]$/, // 星期
+      /^第\d+[期个批卷集]$/, // 序号
+      /^Phase \d+$/i, // 英文阶段
+      /^Stage \d+$/i, // 英文阶段
+      /^Level \d+$/i, // 等级
+      /^\d{4}年$/, // 年份
+    ];
+
+    return sequentialPatterns.some(pattern => pattern.test(value));
+  }
+
+  /**
+   * 智能图表配置生成器（使用工厂模式）
+   */
+  public generateSmartChartConfig(data: LocalChartData, chartType?: string, customOptions?: {
+    theme?: 'light' | 'dark' | 'blue';
+    animation?: boolean;
+    dataLabels?: boolean;
+    title?: string;
+    subtitle?: string;
+    width?: number;
+    height?: number;
+    responsive?: boolean;
+  }): object {
+    const headers = data.headers;
+    const rows = data.rows;
+    const numericColumns = data.numericColumns;
+    const categoryColumns = data.categoryColumns;
+
+    // 获取推荐信息
+    const recommendations = this.recommendChartTypes(data);
+    const type = (chartType || recommendations[0]?.type || 'bar') as 'bar' | 'line' | 'pie' | 'scatter';
+    const recommendation = recommendations.find(r => r.type === type) || recommendations[0];
+
+    // 数据质量评估
+    const dataQuality = this.assessDataQuality(data);
+
+    // 智能标题生成
+    const title = customOptions?.title || this.generateSmartTitle(data, type, recommendation);
+
+    // 主题配置
+    const theme = this.getThemeConfig(customOptions?.theme || 'dark');
+
+    const config: LocalChartConfig = {
+      title: title,
+      type: type,
+      xAxis: this.generateXAxisConfig(data, type),
+      yAxis: this.generateYAxisConfig(data, type),
+      series: [],
+      legend: this.generateLegendConfig(data, type),
+      tooltip: this.generateTooltipConfig(type)
+    };
+
+    // 根据图表类型生成系列数据
+    switch (type) {
+      case 'bar':
+        this.generateBarSeries(config, data, theme);
+        break;
+      case 'line':
+        this.generateLineSeries(config, data, theme, customOptions?.animation !== false);
+        break;
+      case 'pie':
+        this.generatePieSeries(config, data, theme, customOptions?.dataLabels === true);
+        break;
+      case 'scatter':
+        this.generateScatterSeries(config, data, theme);
+        break;
     }
 
     return config;
   }
 
   /**
-   * 将本地配置转换为ECharts配置
+   * 兼容性方法：生成图表配置
    */
-  public toEChartsOption(localConfig: LocalChartConfig): Object {
+  public generateChartConfig(data: LocalChartData, chartType?: string): LocalChartConfig {
+    return this.generateSmartChartConfig(data, chartType);
+  }
+
+  /**
+   * 智能标题生成
+   */
+  private generateSmartTitle(data: LocalChartData, chartType: string, recommendation?: ChartRecommendation): string {
+    const headers = data.headers;
+    const rows = data.rows;
+    const numericColumns = data.numericColumns;
+    const categoryColumns = data.categoryColumns;
+
+    const chartTypeNames = {
+      'bar': '柱状图',
+      'line': '折线图',
+      'pie': '饼图',
+      'scatter': '散点图'
+    };
+
+    // 检查时间序列数据
+    let timeDesc = '';
+    if (categoryColumns.length > 0) {
+      const categoryCol = categoryColumns[0];
+      const categoryValues = rows.map(row => row[categoryCol]);
+      if (this.isTimeSeriesData(categoryValues)) {
+        timeDesc = this.extractTimeDescription(categoryValues);
+      }
+    }
+
+    // 根据数据特点生成标题
+    if (recommendation?.confidence === 'high') {
+      if (timeDesc) {
+        return `${timeDesc}${chartTypeNames[chartType as keyof typeof chartTypeNames]}分析`;
+      } else {
+        const mainMetric = headers[numericColumns[0]];
+        const category = headers[categoryColumns[0]];
+        return `${category}${mainMetric}${chartTypeNames[chartType as keyof typeof chartTypeNames]}`;
+      }
+    } else {
+      return `智能${chartTypeNames[chartType as keyof typeof chartTypeNames]}`;
+    }
+  }
+
+  /**
+   * 提取时间描述
+   */
+  private extractTimeDescription(categoryValues: string[]): string {
+    // 检查年份范围
+    const years = categoryValues.map(v => v.match(/\d{4}/)?.[1]).filter(Boolean);
+    if (years.length >= 2) {
+      const minYear = Math.min(...years.map(Number));
+      const maxYear = Math.max(...years.map(Number));
+      if (minYear !== maxYear) {
+        return `${minYear}-${maxYear}年`;
+      }
+    }
+
+    // 检查月份
+    const months = categoryValues.filter(v => v.includes('月'));
+    if (months.length > 0) {
+      return '月度';
+    }
+
+    // 检查季度
+    const quarters = categoryValues.filter(v => v.includes('季度') || v.includes('Q'));
+    if (quarters.length > 0) {
+      return '季度';
+    }
+
+    // 检查星期
+    const weeks = categoryValues.filter(v => v.includes('周') || v.includes('星期'));
+    if (weeks.length > 0) {
+      return '周度';
+    }
+
+    return '';
+  }
+
+  /**
+   * 获取主题配置
+   */
+  private getThemeConfig(theme: 'light' | 'dark' | 'blue') {
+    const themes = {
+      'light': {
+        backgroundColor: '#FFFFFF',
+        textColor: '#333333',
+        primaryColor: '#1890FF',
+        colors: ['#1890FF', '#52C41A', '#FAAD14', '#F5222D', '#722ED1', '#FA8C16']
+      },
+      'dark': {
+        backgroundColor: '#1C1C1C',
+        textColor: '#FFFFFF',
+        primaryColor: '#007DFF',
+        colors: ['#007DFF', '#00C853', '#FFD600', '#FF5252', '#B388FF', '#FF6E40']
+      },
+      'blue': {
+        backgroundColor: '#0A1931',
+        textColor: '#E0E0E0',
+        primaryColor: '#2196F3',
+        colors: ['#2196F3', '#4CAF50', '#FF9800', '#F44336', '#9C27B0', '#00BCD4']
+      }
+    };
+
+    return themes[theme];
+  }
+
+  /**
+   * 生成X轴配置
+   */
+  private generateXAxisConfig(data: LocalChartData, chartType: string): XAxisConfig {
+    const categoryColumns = data.categoryColumns;
+    const headers = data.headers;
+
+    if (chartType === 'scatter' || chartType === 'pie') {
+      return {
+        type: 'value',
+        name: ''
+      };
+    }
+
+    if (categoryColumns.length > 0) {
+      return {
+        type: 'category',
+        name: headers[categoryColumns[0]]
+      };
+    }
+
+    return {
+      type: 'category',
+      name: '类别'
+    };
+  }
+
+  /**
+   * 生成Y轴配置
+   */
+  private generateYAxisConfig(data: LocalChartData, chartType: string): YAxisConfig {
+    const numericColumns = data.numericColumns;
+    const headers = data.headers;
+
+    if (chartType === 'pie') {
+      return {
+        type: 'category',
+        name: ''
+      };
+    }
+
+    if (numericColumns.length > 0) {
+      return {
+        type: 'value',
+        name: headers[numericColumns[0]]
+      };
+    }
+
+    return {
+      type: 'value',
+      name: '数值'
+    };
+  }
+
+  /**
+   * 生成图例配置
+   */
+  private generateLegendConfig(data: LocalChartData, chartType: string): LegendConfig {
+    if (chartType === 'pie') {
+      return {
+        show: true,
+        data: []
+      };
+    }
+
+    const showLegend = data.numericColumns.length > 1 || chartType === 'pie';
+    return {
+      show: showLegend,
+      data: showLegend ? data.numericColumns.map(col => data.headers[col]) : []
+    };
+  }
+
+  /**
+   * 生成提示框配置
+   */
+  private generateTooltipConfig(chartType: string): TooltipConfig {
+    return {
+      trigger: chartType === 'pie' ? 'item' : 'axis',
+      formatter: chartType === 'pie' ? '{a} <br/>{b}: {c} ({d}%)' : undefined
+    };
+  }
+
+  /**
+   * 生成柱状图系列
+   */
+  private generateBarSeries(config: LocalChartConfig, data: LocalChartData, theme: any): void {
+    const rows = data.rows;
+    const numericColumns = data.numericColumns;
+    const categoryColumns = data.categoryColumns;
+
+    if (categoryColumns.length > 0) {
+      const categoryCol = categoryColumns[0];
+      config.xAxis.data = rows.map(row => row[categoryCol]);
+    }
+
+    numericColumns.forEach((col, index) => {
+      const seriesData = rows.map(row => Number(row[col]) || 0);
+      config.series.push({
+        name: data.headers[col],
+        type: 'bar',
+        data: seriesData,
+        color: theme.colors[index % theme.colors.length]
+      });
+    });
+  }
+
+  /**
+   * 生成折线图系列
+   */
+  private generateLineSeries(config: LocalChartConfig, data: LocalChartData, theme: any, enableAnimation: boolean = true): void {
+    const rows = data.rows;
+    const numericColumns = data.numericColumns;
+    const categoryColumns = data.categoryColumns;
+
+    if (categoryColumns.length > 0) {
+      const categoryCol = categoryColumns[0];
+      config.xAxis.data = rows.map(row => row[categoryCol]);
+    }
+
+    numericColumns.forEach((col, index) => {
+      const seriesData = rows.map(row => Number(row[col]) || 0);
+      config.series.push({
+        name: data.headers[col],
+        type: 'line',
+        data: seriesData,
+        color: theme.colors[index % theme.colors.length]
+      });
+    });
+  }
+
+  /**
+   * 生成饼图系列
+   */
+  private generatePieSeries(config: LocalChartConfig, data: LocalChartData, theme: any, showDataLabels: boolean = false): void {
+    const rows = data.rows;
+    const numericColumns = data.numericColumns;
+    const categoryColumns = data.categoryColumns;
+
+    if (numericColumns.length >= 1 && categoryColumns.length >= 1) {
+      const categoryCol = categoryColumns[0];
+      const numericCol = numericColumns[0];
+
+      // 聚合数据
+      const aggregatedData = new Map<string, number>();
+      rows.forEach(row => {
+        const category = row[categoryCol];
+        const value = Number(row[numericCol]) || 0;
+        aggregatedData.set(category, (aggregatedData.get(category) || 0) + value);
+      });
+
+      const pieData = Array.from(aggregatedData.entries()).map(([name, value]) => ({
+        name,
+        value
+      }));
+
+      config.series.push({
+        name: data.headers[numericCol],
+        type: 'pie',
+        data: pieData,
+        color: theme.colors[0]
+      });
+    }
+  }
+
+  /**
+   * 生成散点图系列
+   */
+  private generateScatterSeries(config: LocalChartConfig, data: LocalChartData, theme: any): void {
+    const rows = data.rows;
+    const numericColumns = data.numericColumns;
+
+    if (numericColumns.length >= 2) {
+      const xCol = numericColumns[0];
+      const yCol = numericColumns[1];
+
+      const scatterData = rows.map(row => [
+        Number(row[xCol]) || 0,
+        Number(row[yCol]) || 0
+      ]);
+
+      config.series.push({
+        name: `${data.headers[xCol]} vs ${data.headers[yCol]}`,
+        type: 'scatter',
+        data: scatterData,
+        color: theme.colors[0]
+      });
+    }
+  }
+
+  /**
+   * 增强的ECharts配置转换（支持主题）
+   */
+  public toEChartsOption(localConfig: LocalChartConfig, theme?: any): Object {
     class TitleConfig {
       text: string = '';
       left: string = '';
@@ -605,5 +1181,152 @@ export class LocalChartService {
     }
 
     return JSON.stringify(jsonData, null, 2);
+  }
+
+  /**
+   * 获取缓存统计信息
+   */
+  public getCacheStats(): any {
+    return this.cacheManager.getStats();
+  }
+
+  /**
+   * 清空缓存
+   */
+  public clearCache(): void {
+    this.cacheManager.clear();
+  }
+
+  /**
+   * 预热缓存
+   */
+  public async warmupCache(): Promise<void> {
+    const predefinedConfigs = [
+      {
+        key: this.cacheManager.generateCacheKey(this.generateSampleData('sales'), 'bar'),
+        data: this.generateSampleData('sales')
+      },
+      {
+        key: this.cacheManager.generateCacheKey(this.generateSampleData('weather'), 'line'),
+        data: this.generateSampleData('weather')
+      },
+      {
+        key: this.cacheManager.generateCacheKey(this.generateSampleData('students'), 'pie'),
+        data: this.generateSampleData('students')
+      }
+    ];
+
+    await this.cacheManager.warmup(predefinedConfigs);
+    console.info('[LocalChartService] 缓存预热完成');
+  }
+
+  /**
+   * 设置缓存配置
+   */
+  public setCacheConfig(config: {
+    maxSize?: number;
+    maxMemorySize?: number;
+    defaultTtl?: number;
+    compressionEnabled?: boolean;
+    persistentCache?: boolean;
+    cleanupInterval?: number;
+  }): void {
+    if (this.cacheManager.config) {
+      Object.assign(this.cacheManager.config, config);
+      console.info('[LocalChartService] 缓存配置已更新');
+    }
+  }
+
+  /**
+   * 生成示例数据
+   */
+  public generateSampleData(dataType: 'sales' | 'weather' | 'students'): LocalChartData {
+    switch (dataType) {
+      case 'sales':
+        return {
+          headers: ['月份', '销售额', '目标额'],
+          rows: [
+            ['1月', '12000', '10000'],
+            ['2月', '15000', '10000'],
+            ['3月', '18000', '12000'],
+            ['4月', '14000', '12000'],
+            ['5月', '20000', '13000'],
+            ['6月', '22000', '13000']
+          ],
+          fileName: 'sales_data.csv',
+          metadata: {
+            title: '销售数据',
+            description: '月度销售数据分析',
+            tags: ['销售', '数据'],
+            createdAt: new Date().toISOString()
+          }
+        };
+
+      case 'weather':
+        return {
+          headers: ['日期', '温度', '湿度'],
+          rows: [
+            ['周一', '22', '65'],
+            ['周二', '24', '70'],
+            ['周三', '19', '80'],
+            ['周四', '25', '60'],
+            ['周五', '27', '55'],
+            ['周六', '23', '75'],
+            ['周日', '21', '85']
+          ],
+          fileName: 'weather_data.csv',
+          metadata: {
+            title: '天气数据',
+            description: '一周天气变化趋势',
+            tags: ['天气', '温度'],
+            createdAt: new Date().toISOString()
+          }
+        };
+
+      case 'students':
+        return {
+          headers: ['姓名', '语文', '数学', '英语'],
+          rows: [
+            ['张三', '85', '92', '78'],
+            ['李四', '92', '88', '95'],
+            ['王五', '78', '85', '82'],
+            ['赵六', '88', '79', '90'],
+            ['钱七', '95', '94', '87'],
+            ['孙八', '82', '86', '83']
+          ],
+          fileName: 'students_scores.csv',
+          metadata: {
+            title: '学生成绩',
+            description: '班级学生成绩统计',
+            tags: ['教育', '成绩'],
+            createdAt: new Date().toISOString()
+          }
+        };
+
+      default:
+        return {
+          headers: ['X', 'Y'],
+          rows: [
+            ['1', '10'],
+            ['2', '20'],
+            ['3', '15'],
+            ['4', '25'],
+            ['5', '30']
+          ],
+          fileName: 'default_data.csv',
+          metadata: {
+            title: '默认数据',
+            description: '示例数据集',
+            tags: ['示例'],
+            createdAt: new Date().toISOString()
+          }
+        };
+    }
+
+  /**
+   * 销毁服务
+   */
+  public destroyService(): void {
+    this.cacheManager.destroy();
   }
 }

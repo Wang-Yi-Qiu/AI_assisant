@@ -288,3 +288,4 @@ curl -X POST https://your-project.supabase.co/functions/v1/generate_chart_qwen \
 - **export DEVECO_SDK_HOME="/Applications/DevEco-Studio.app/Contents/sdk"
 - **/Applications/DevEco-Studio.app/Contents/tools/hvigor/bin/hvigorw assembleHap
 ### After each project modification, compile it to confirm whether it can run.
+- 每次修改之后见修改的内容合并到main分支上，并询问我是否传输到远程仓库

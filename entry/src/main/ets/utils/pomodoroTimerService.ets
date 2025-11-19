@@ -764,4 +764,17 @@ export class PomodoroTimerService {
   getNotificationService(): NotificationService {
     return this.notificationService;
   }
+
+  /**
+   * 获取表单管理器实例
+   */
+  getFormManager(): any {
+    try {
+      const { PomodoroFormManager } = require('../form/PomodoroFormManager');
+      return PomodoroFormManager.getInstance();
+    } catch (error) {
+      console.error('PomodoroTimerService: Failed to get FormManager:', error);
+      return null;
+    }
+  }
 }

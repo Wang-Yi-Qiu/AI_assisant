@@ -32,11 +32,23 @@ export struct AIAssistantPage {
       const chartData = this.localChartService.generateSampleData(dataType);
       console.info('[AIAssistantPage] 示例数据生成完成');
 
-      // 跳转到图表页面并传递数据
+      // 跳转到智能图表选择页面
       await router.pushUrl({
-        url: 'pages/LocalChartPage',
+        url: 'pages/SmartChartSelectorPage',
         params: {
-          'chartData': JSON.stringify(chartData)
+          'parsedData': {
+            fileName: 'sample_data.csv',
+            headers: chartData.headers,
+            data: chartData.rows.map(row => {
+              const obj: Record<string, Object> = {};
+              chartData.headers.forEach((header, index) => {
+                obj[header] = row[index];
+              });
+              return obj;
+            }),
+            rowCount: chartData.rows.length,
+            columnCount: chartData.headers.length
+          }
         }
       });
 
@@ -73,11 +85,17 @@ export struct AIAssistantPage {
       if (chartData) {
         console.info('[AIAssistantPage] CSV解析成功');
 
-        // 跳转到图表页面并传递数据
+        // 跳转到智能图表选择页面
         await router.pushUrl({
-          url: 'pages/LocalChartPage',
+          url: 'pages/SmartChartSelectorPage',
           params: {
-            'chartData': JSON.stringify(chartData)
+            'parsedData': {
+              fileName: chartData.fileName,
+              headers: chartData.headers,
+              data: chartData.data,
+              rowCount: chartData.data.length,
+              columnCount: chartData.headers.length
+            }
           }
         });
 
