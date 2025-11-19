@@ -25,6 +25,16 @@ export interface LocalChartData {
   };
 }
 
+/**
+ * 图表推荐结果接口
+ */
+export interface ChartRecommendation {
+  type: 'bar' | 'line' | 'pie' | 'scatter';
+  score: number;
+  reason: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
 // 图表配置类型
 export interface LocalChartConfig {
   title: string;
@@ -299,16 +309,6 @@ export class LocalChartService {
       categoryColumns: categoryColumns
     };
     return result;
-  }
-
-  /**
-   * 图表推荐结果接口
-   */
-  export interface ChartRecommendation {
-    type: 'bar' | 'line' | 'pie' | 'scatter';
-    score: number;
-    reason: string;
-    confidence: 'high' | 'medium' | 'low';
   }
 
   /**
@@ -1253,6 +1253,8 @@ export class LocalChartService {
             ['5月', '20000', '13000'],
             ['6月', '22000', '13000']
           ],
+          numericColumns: [1, 2],
+          categoryColumns: [0],
           fileName: 'sales_data.csv',
           metadata: {
             title: '销售数据',
@@ -1274,6 +1276,8 @@ export class LocalChartService {
             ['周六', '23', '75'],
             ['周日', '21', '85']
           ],
+          numericColumns: [1, 2],
+          categoryColumns: [0],
           fileName: 'weather_data.csv',
           metadata: {
             title: '天气数据',
@@ -1294,6 +1298,8 @@ export class LocalChartService {
             ['钱七', '95', '94', '87'],
             ['孙八', '82', '86', '83']
           ],
+          numericColumns: [1, 2, 3],
+          categoryColumns: [0],
           fileName: 'students_scores.csv',
           metadata: {
             title: '学生成绩',
@@ -1313,6 +1319,8 @@ export class LocalChartService {
             ['4', '25'],
             ['5', '30']
           ],
+          numericColumns: [0, 1],
+          categoryColumns: [],
           fileName: 'default_data.csv',
           metadata: {
             title: '默认数据',
@@ -1322,6 +1330,7 @@ export class LocalChartService {
           }
         };
     }
+  }
 
   /**
    * 销毁服务

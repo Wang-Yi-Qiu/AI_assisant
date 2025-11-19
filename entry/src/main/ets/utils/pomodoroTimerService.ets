@@ -1,5 +1,6 @@
 import { getStorageInstance } from './preferencesStorage';
 import { NotificationService } from './notificationService';
+import { PomodoroFormManager } from '../form/PomodoroFormManager';
 
 /**
  * 番茄钟状态枚举
@@ -770,7 +771,7 @@ export class PomodoroTimerService {
    */
   getFormManager(): any {
     try {
-      const { PomodoroFormManager } = require('../form/PomodoroFormManager');
+      // 使用导入的 PomodoroFormManager
       return PomodoroFormManager.getInstance();
     } catch (error) {
       console.error('PomodoroTimerService: Failed to get FormManager:', error);
