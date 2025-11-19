@@ -22,7 +22,7 @@ export interface HttpResponseHeaders {
   'etag'?: string;
 }
 
-export type HttpRequestHeaders = Record<string, string | undefined>;
+export type HttpRequestHeaders = Record<string, string>;
 
 export interface HttpResponse {
   status: number;
@@ -285,17 +285,21 @@ class HttpClient {
     const result: HttpRequestHeaders = {};
 
     // 复制基础headers
-    if (base['content-type']) {
-      result['content-type'] = base['content-type'];
+    const contentType = base['content-type'];
+    if (contentType) {
+      result['content-type'] = contentType;
     }
-    if (base['accept']) {
-      result['accept'] = base['accept'];
+    const accept = base['accept'];
+    if (accept) {
+      result['accept'] = accept;
     }
-    if (base['authorization']) {
-      result['authorization'] = base['authorization'];
+    const authorization = base['authorization'];
+    if (authorization) {
+      result['authorization'] = authorization;
     }
-    if (base['apikey']) {
-      result['apikey'] = base['apikey'];
+    const apikey = base['apikey'];
+    if (apikey) {
+      result['apikey'] = apikey;
     }
 
     // 复制认证headers（注意：AuthHeaders使用不同的键名）
@@ -314,22 +318,29 @@ class HttpClient {
     }
 
     const result: HttpResponseHeaders = {};
-    const headerObj = header as { [key: string]: string };
 
-    if (headerObj['content-type']) {
-      result['content-type'] = headerObj['content-type'];
+    // 使用类型断言和可选链操作符避免索引访问
+    const headerObj = header as Record<string, string>;
+
+    const contentType = headerObj['content-type'];
+    if (contentType) {
+      result['content-type'] = contentType;
     }
-    if (headerObj['content-length']) {
-      result['content-length'] = headerObj['content-length'];
+    const contentLength = headerObj['content-length'];
+    if (contentLength) {
+      result['content-length'] = contentLength;
     }
-    if (headerObj['authorization']) {
-      result['authorization'] = headerObj['authorization'];
+    const authorization = headerObj['authorization'];
+    if (authorization) {
+      result['authorization'] = authorization;
     }
-    if (headerObj['cache-control']) {
-      result['cache-control'] = headerObj['cache-control'];
+    const cacheControl = headerObj['cache-control'];
+    if (cacheControl) {
+      result['cache-control'] = cacheControl;
     }
-    if (headerObj['etag']) {
-      result['etag'] = headerObj['etag'];
+    const etag = headerObj['etag'];
+    if (etag) {
+      result['etag'] = etag;
     }
 
     return result;

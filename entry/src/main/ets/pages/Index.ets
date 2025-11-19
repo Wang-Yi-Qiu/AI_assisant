@@ -7,6 +7,7 @@ import { onGenerateFromText, parseFileContent } from './HomePage';
 import { setChartOption } from './ChartPage';
 import router from '@ohos.router';
 import filePicker from '@ohos.file.picker';
+import fs from '@ohos.file.fs';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { util } from '@kit.ArkTS';
 import { ErrorHandler, AppError } from '../utils/errorHandler';
@@ -159,7 +160,9 @@ struct Index {
       .padding(16)
       .margin({ top: 20 })
       .onClick(() => {
-        router.pushPathByName('pages/HistoryPage').catch((err: Error) => {
+        router.pushUrl({
+          url: 'pages/HistoryPage'
+        }).catch((err: BusinessError) => {
           console.error('跳转到历史页失败:', err);
           this.errorMessage = '无法打开历史记录页';
         });
@@ -212,9 +215,11 @@ struct Index {
         // 跳转到图表页
         setTimeout(() => {
           if (!this.isDestroyed) {
-            router.pushPathByName('pages/ChartPage').catch((err: Error) => {
-              console.error('跳转到图表页失败:', err);
-              if (!this.isDestroyed) {
+            router.pushUrl({
+                url: 'pages/ChartPage'
+              }).catch((err: BusinessError) => {
+                console.error('跳转到图表页失败:', err);
+                if (!this.isDestroyed) {
                 this.errorMessage = '生成成功，但跳转失败';
                 this.showSuccess = false;
               }
@@ -265,11 +270,8 @@ struct Index {
         }
       });
 
-      // 设置文件类型过滤器
-      documentPicker.selectFile({
-        maxSelectNumber: 1,
-        fileSuffixArray: ['.csv', '.json', '.txt', '.xlsx', '.xls']
-      });
+      // 设置文件类型过滤器 - 移除不存在的selectFile方法
+      // documentPicker API在HarmonyOS中已更新，无需手动设置过滤器
 
     } catch (error) {
       const appError = ErrorHandler.handle(error, 'onUploadFile');
@@ -317,8 +319,6 @@ struct Index {
     let content = '';
 
     try {
-      const fs = await import('@ohos.file.fs');
-
       // 1. 先检查文件大小
       const stat = fs.statSync(fileUri);
       if (stat.size > MAX_FILE_SIZE) {
@@ -340,7 +340,9 @@ struct Index {
         while (offset < stat.size) {
           const remainingSize = Math.min(CHUNK_SIZE, stat.size - offset);
           const buffer = new ArrayBuffer(remainingSize);
-          const readLen = fs.readSync(file.fd, buffer, { offset });
+          const readLen = fs.readSync(file.fd, buffer, {
+          offset: offset
+        });
 
           if (readLen === 0) break;
 
@@ -352,7 +354,7 @@ struct Index {
 
       } finally {
         // 4. 确保文件句柄被关闭
-        fs.close(file.fd);
+        fs.closeSync(file.fd);
       }
 
       return content;

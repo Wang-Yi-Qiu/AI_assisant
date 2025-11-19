@@ -7,6 +7,7 @@ import { fetchCharts, ChartRecordRow } from '../utils/supabaseClient';
 import { ChartConfig } from '../utils/aiService';
 import { setChartOption } from './ChartPage';
 import router from '@ohos.router';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 export interface ChartRecord {
   id: string;
@@ -130,7 +131,9 @@ struct HistoryPage {
     .borderRadius(8)
     .onClick(() => {
       setChartOption(item.chartConfig);
-      router.pushPathByName('pages/ChartPage').catch((err: Error) => {
+      router.pushUrl({
+        url: 'pages/ChartPage'
+      }).catch((err: BusinessError) => {
         console.error('跳转到图表页失败:', err);
         this.errorMessage = '无法打开图表页';
       });
