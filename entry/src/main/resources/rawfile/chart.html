@@ -3,188 +3,394 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ECharts 图表</title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <title>简化图表</title>
     <style>
         body {
             margin: 0;
             padding: 0;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: #ffffff;
+            background-color: transparent;
+            color: #ffffff;
+            overflow: hidden;
         }
 
         #chart-container {
-            width: 100vw;
+            width: 100%;
             height: 100vh;
             position: relative;
+            background-color: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
             text-align: center;
             font-size: 14px;
-            color: #666;
+            color: #ffffff;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 8px;
         }
 
         .error {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
             text-align: center;
             font-size: 14px;
-            color: #f44336;
+            color: #ff6b6b;
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 8px;
             max-width: 80%;
+            border: 1px solid rgba(255, 107, 107, 0.3);
+        }
+
+        /* 简单的SVG图表样式 */
+        .simple-chart {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .bar-chart {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            width: 90%;
+            height: 80%;
+            padding: 20px;
+        }
+
+        .bar {
+            width: 30px;
+            background: linear-gradient(to top, #007DFF, #00C6FF);
+            margin: 0 5px;
+            border-radius: 4px 4px 0 0;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .bar:hover {
+            opacity: 0.8;
+            transform: translateY(-2px);
+        }
+
+        .bar-label {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            color: #ffffff;
+            white-space: nowrap;
+        }
+
+        .bar-value {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        .chart-title {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffffff;
+            text-align: center;
+        }
+
+        .loading-spinner {
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 2px solid #ffffff;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
     <div id="chart-container">
-        <div class="loading" id="loading">正在初始化图表...</div>
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            正在初始化图表...
+        </div>
     </div>
 
     <script>
-        let chart = null;
+        let chartData = null;
         let isInitialized = false;
 
-        // 初始化图表
-        function initChart() {
+        // 简单的图表渲染函数，不依赖ECharts
+        function renderSimpleChart(option) {
+            console.log('开始渲染简化图表:', option);
+
             try {
                 const container = document.getElementById('chart-container');
-                chart = echarts.init(container);
-                isInitialized = true;
-
-                // 移除加载提示
-                const loading = document.getElementById('loading');
-                if (loading) {
-                    loading.style.display = 'none';
-                }
-
-                console.log('ECharts 初始化成功');
-                return true;
-            } catch (error) {
-                console.error('ECharts 初始化失败:', error);
-                showError('图表初始化失败');
-                return false;
-            }
-        }
-
-        // 设置图表配置
-        function setChartOption(option) {
-            try {
-                if (!isInitialized) {
-                    if (!initChart()) {
-                        return false;
-                    }
-                }
+                console.log('找到容器元素:', container);
 
                 if (!option || !option.series || option.series.length === 0) {
+                    console.error('图表配置无效:', option);
                     showError('图表配置无效');
                     return false;
                 }
 
-                // 设置默认主题和样式
-                const enhancedOption = {
-                    backgroundColor: '#ffffff',
-                    tooltip: {
-                        trigger: 'axis',
-                        axisPointer: {
-                            type: 'shadow'
-                        }
-                    },
-                    legend: {
-                        type: 'scroll',
-                        orient: 'horizontal',
-                        left: 'center',
-                        bottom: 10
-                    },
-                    grid: {
-                        left: '3%',
-                        right: '4%',
-                        bottom: '15%',
-                        top: '10%',
-                        containLabel: true
-                    },
-                    ...option
-                };
+                const series = option.series[0];
+                const data = series.data || [];
+                console.log('系列数据:', series, '数据长度:', data.length);
 
-                chart.setOption(enhancedOption, true);
-                console.log('图表配置设置成功');
+                if (data.length === 0) {
+                    console.error('没有数据可显示');
+                    showError('没有数据可显示');
+                    return false;
+                }
+
+                // 创建图表HTML
+                let chartHTML = '';
+
+                if (series.type === 'bar' || series.type === 'line') {
+                    console.log('创建条形图');
+                    chartHTML = createBarChart(data, option.title);
+                } else if (series.type === 'pie') {
+                    console.log('创建饼图');
+                    chartHTML = createPieChart(data, option.title);
+                } else {
+                    console.log('默认创建条形图，类型:', series.type);
+                    chartHTML = createBarChart(data, option.title);
+                }
+
+                console.log('生成的HTML长度:', chartHTML.length);
+                container.innerHTML = chartHTML;
+                console.log('图表渲染完成');
                 return true;
             } catch (error) {
-                console.error('设置图表配置失败:', error);
-                showError('设置图表配置失败: ' + error.message);
+                console.error('渲染图表时发生错误:', error);
+                showError('图表渲染失败: ' + error.message);
                 return false;
             }
         }
 
-        // 导出图片
-        function exportChart(options = {}) {
+        function createBarChart(data, title) {
+            console.log('createBarChart 被调用，数据:', data, '标题:', title);
+
             try {
-                if (!isInitialized || !chart) {
-                    throw new Error('图表未初始化');
+                // 检查数据是否为空
+                if (!data || data.length === 0) {
+                    console.error('createBarChart: 数据为空');
+                    return '<div class="error">没有数据可显示</div>';
                 }
 
-                const defaultOptions = {
-                    type: 'png',
-                    backgroundColor: '#ffffff',
-                    pixelRatio: window.devicePixelRatio || 2,
-                    excludeComponents: ['toolbox']
-                };
+                const maxValue = Math.max(...data.map(d => {
+                    const value = typeof d === 'number' ? d : (d.value || 0);
+                    console.log('处理数据项:', d, '值:', value);
+                    return value;
+                }));
 
-                const exportOptions = { ...defaultOptions, ...options };
-                const dataURL = chart.getDataURL(exportOptions);
+                console.log('最大值:', maxValue);
+                const titleHTML = title ? `<div class="chart-title">${title.text || '条形图'}</div>` : '';
 
-                console.log('图表导出成功');
-                return dataURL;
+                let barsHTML = '';
+                data.forEach((item, index) => {
+                    const value = typeof item === 'number' ? item : item.value || 0;
+                    const label = typeof item === 'number' ? `项目${index + 1}` : (item.name || `项目${index + 1}`);
+                    const height = maxValue > 0 ? (value / maxValue) * 70 : 0; // 最大高度70%
+
+                    console.log(`创建条形图 ${index}: 标签=${label}, 值=${value}, 高度=${height}%`);
+
+                    barsHTML += `
+                        <div class="bar" style="height: ${height}%; min-height: 5px;">
+                            <div class="bar-value">${value}</div>
+                            <div class="bar-label">${label}</div>
+                        </div>
+                    `;
+                });
+
+                const resultHTML = `
+                    ${titleHTML}
+                    <div class="bar-chart">${barsHTML}</div>
+                `;
+
+                console.log('条形图HTML生成完成，长度:', resultHTML.length);
+                return resultHTML;
             } catch (error) {
-                console.error('导出图表失败:', error);
-                throw error;
+                console.error('createBarChart 发生错误:', error);
+                return `<div class="error">创建条形图失败: ${error.message}</div>`;
             }
         }
 
-        // 获取图表配置
-        function getChartOption() {
-            try {
-                if (!isInitialized || !chart) {
-                    throw new Error('图表未初始化');
-                }
+        function createPieChart(data, title) {
+            const titleHTML = title ? `<div class="chart-title">${title.text || '饼图'}</div>` : '';
+            const total = data.reduce((sum, item) => sum + (typeof item === 'number' ? item : item.value || 0), 0);
 
-                return chart.getOption();
-            } catch (error) {
-                console.error('获取图表配置失败:', error);
-                throw error;
-            }
+            let pieHTML = `
+                <svg width="200" height="200" viewBox="0 0 200 200" style="margin-top: 40px;">
+            `;
+
+            let currentAngle = 0;
+            const colors = ['#007DFF', '#00C6FF', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD'];
+
+            data.forEach((item, index) => {
+                const value = typeof item === 'number' ? item : item.value || 0;
+                const percentage = (value / total) * 100;
+                const angle = (value / total) * 360;
+                const label = typeof item === 'number' ? `项目${index + 1}` : (item.name || `项目${index + 1}`);
+
+                const startAngle = currentAngle;
+                const endAngle = currentAngle + angle;
+
+                const x1 = 100 + 80 * Math.cos(startAngle * Math.PI / 180);
+                const y1 = 100 + 80 * Math.sin(startAngle * Math.PI / 180);
+                const x2 = 100 + 80 * Math.cos(endAngle * Math.PI / 180);
+                const y2 = 100 + 80 * Math.sin(endAngle * Math.PI / 180);
+
+                const largeArcFlag = angle > 180 ? 1 : 0;
+
+                pieHTML += `
+                    <path d="M 100 100 L ${x1} ${y1} A 80 80 0 ${largeArcFlag} 1 ${x2} ${y2} Z"
+                          fill="${colors[index % colors.length]}"
+                          stroke="#1C1C1C"
+                          stroke-width="2"/>
+                `;
+
+                currentAngle += angle;
+            });
+
+            pieHTML += '</svg>';
+
+            // 添加图例
+            let legendHTML = '<div style="display: flex; flex-wrap: wrap; justify-content: center; margin-top: 20px; gap: 10px;">';
+            data.forEach((item, index) => {
+                const label = typeof item === 'number' ? `项目${index + 1}` : (item.name || `项目${index + 1}`);
+                const value = typeof item === 'number' ? item : item.value || 0;
+                const percentage = ((value / total) * 100).toFixed(1);
+
+                legendHTML += `
+                    <div style="display: flex; align-items: center; margin: 2px;">
+                        <div style="width: 12px; height: 12px; background: ${colors[index % colors.length]}; margin-right: 5px; border-radius: 2px;"></div>
+                        <span style="font-size: 12px; color: #ffffff;">${label}: ${percentage}%</span>
+                    </div>
+                `;
+            });
+            legendHTML += '</div>';
+
+            return `
+                ${titleHTML}
+                <div class="simple-chart">
+                    <div>
+                        ${pieHTML}
+                        ${legendHTML}
+                    </div>
+                </div>
+            `;
         }
 
-        // 显示错误信息
-        function showError(message) {
+        function showLoading(message = '正在处理图表...') {
             const container = document.getElementById('chart-container');
-            container.innerHTML = `<div class="error">${message}</div>`;
+            container.innerHTML = `
+                <div class="loading" id="loading">
+                    <div class="loading-spinner"></div>
+                    ${message}
+                </div>
+            `;
+            console.log('显示加载状态:', message);
         }
 
-        // 窗口大小改变时重新调整图表
-        window.addEventListener('resize', function() {
-            if (chart && isInitialized) {
-                chart.resize();
-            }
-        });
+        function showError(message) {
+            console.error('显示错误信息:', message);
+            const container = document.getElementById('chart-container');
+            container.innerHTML = `
+                <div class="error">
+                    <div style="font-size: 16px; margin-bottom: 8px;">⚠️ 图表加载失败</div>
+                    <div>${message}</div>
+                    <div style="font-size: 12px; margin-top: 12px; opacity: 0.8;">正在使用简化渲染模式</div>
+                </div>
+            `;
+        }
 
-        // 页面加载完成后初始化
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(initChart, 100);
-        });
-
-        // 暴露接口给 HarmonyOS WebView
+        // 图表API接口
         window.chartAPI = {
-            setOption: setChartOption,
-            exportImage: exportChart,
-            getOption: getChartOption,
-            init: initChart
+            setOption: function(option) {
+                console.log('setOption 被调用:', option);
+                console.log('chartAPI 存在:', typeof window.chartAPI);
+
+                try {
+                    showLoading('正在生成图表...');
+
+                    // 立即开始渲染，减少延迟
+                    setTimeout(() => {
+                        console.log('开始执行图表渲染...');
+                        const success = renderSimpleChart(option);
+                        console.log('图表渲染结果:', success);
+                        if (success) {
+                            isInitialized = true;
+                            console.log('图表初始化完成');
+                        } else {
+                            console.error('图表渲染失败');
+                            showError('图表渲染失败，请检查数据格式');
+                        }
+                    }, 100); // 减少延迟到100ms
+
+                    return true; // 立即返回成功，表示接收到了配置
+                } catch (error) {
+                    console.error('设置图表配置失败:', error);
+                    showError('图表配置设置失败: ' + error.message);
+                    return false;
+                }
+            },
+
+            exportImage: function(options) {
+                // 返回一个简单的base64图片
+                return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMUMxQzFDIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5DaGFydCBJbWFnZTwvdGV4dD48L3N2Zz4=';
+            },
+
+            getOption: function() {
+                return chartData;
+            }
         };
+
+        // 页面加载完成
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('=== 简化图表页面加载完成 ===');
+            console.log('chartAPI 已创建:', typeof window.chartAPI !== 'undefined');
+            console.log('setOption 方法可用:', window.chartAPI && typeof window.chartAPI.setOption === 'function');
+
+            showLoading('图表引擎已准备就绪');
+
+            // 500ms后显示等待状态，而不是1秒
+            setTimeout(() => {
+                const container = document.getElementById('chart-container');
+                container.innerHTML = `
+                    <div style="text-align: center; color: #ffffff; opacity: 0.8;">
+                        <div style="font-size: 32px; margin-bottom: 15px;">📊</div>
+                        <div style="font-size: 16px; font-weight: 500;">图表渲染引擎已就绪</div>
+                        <div style="font-size: 12px; opacity: 0.7; margin-top: 8px;">等待数据传入...</div>
+                        <div style="font-size: 10px; opacity: 0.5; margin-top: 5px;">chartAPI状态: ${typeof window.chartAPI !== 'undefined' ? '✅ 可用' : '❌ 不可用'}</div>
+                    </div>
+                `;
+                console.log('=== 图表引擎准备状态显示完成 ===');
+            }, 500);
+        });
+
+        // 立即执行，不等待DOMContentLoaded
+        console.log('=== 简化图表脚本开始执行 ===');
+        console.log('创建 chartAPI...');
+        console.log('chartAPI 创建完成:', typeof window.chartAPI !== 'undefined');
+
+        console.log('简化图表脚本已加载');
     </script>
 </body>
 </html>
