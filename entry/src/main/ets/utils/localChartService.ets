@@ -19,6 +19,50 @@ interface ChartTheme {
   primaryColor?: string;
 }
 
+// 预热缓存配置接口
+interface PredefinedConfig {
+  key: string;
+  data: LocalChartData;
+}
+
+// 缓存配置参数接口
+interface CacheConfigParams {
+  maxSize?: number;
+  maxMemoryMB?: number;
+  ttlMinutes?: number;
+  compressionEnabled?: boolean;
+  persistentCache?: boolean;
+  cleanupInterval?: number;
+}
+
+// 缓存统计返回接口
+interface CacheStatsResult {
+  totalEntries: number;
+  hitRate: number;
+  totalMemoryUsage: number;
+}
+
+// 图表类型名称映射接口
+interface ChartTypeNames {
+  bar: string;
+  line: string;
+  pie: string;
+  scatter: string;
+}
+
+// 自定义选项接口
+interface CustomOptions {
+  theme?: 'light' | 'dark' | 'blue';
+  animation?: boolean;
+  dataLabels?: boolean;
+  title?: string;
+  subtitle?: string;
+  width?: number;
+  height?: number;
+  responsive?: boolean;
+}
+
+
 // 图表数据类型定义
 export interface LocalChartData {
   headers: string[];
@@ -106,6 +150,21 @@ export class LocalChartService {
 
   private constructor() {
     this.cacheManager = ChartCacheManager.getInstance();
+  }
+
+  /**
+   * 获取图表类型名称的辅助函数
+   */
+  private getChartTypeName(chartType: 'bar' | 'line' | 'pie' | 'scatter'): string {
+    if (chartType === 'bar') {
+      return '柱状图';
+    } else if (chartType === 'line') {
+      return '折线图';
+    } else if (chartType === 'pie') {
+      return '饼图';
+    } else {
+      return '散点图';
+    }
   }
 
   /**
@@ -671,16 +730,7 @@ export class LocalChartService {
   /**
    * 智能图表配置生成器（使用工厂模式）
    */
-  public generateSmartChartConfig(data: LocalChartData, chartType?: string, customOptions?: {
-    theme?: 'light' | 'dark' | 'blue';
-    animation?: boolean;
-    dataLabels?: boolean;
-    title?: string;
-    subtitle?: string;
-    width?: number;
-    height?: number;
-    responsive?: boolean;
-  }): LocalChartConfig {
+  public generateSmartChartConfig(data: LocalChartData, chartType?: string, customOptions?: CustomOptions): LocalChartConfig {
     const headers = data.headers;
     const rows = data.rows;
     const numericColumns = data.numericColumns;
@@ -745,11 +795,11 @@ export class LocalChartService {
     const numericColumns = data.numericColumns;
     const categoryColumns = data.categoryColumns;
 
-    const chartTypeNames = {
-      'bar': '柱状图',
-      'line': '折线图',
-      'pie': '饼图',
-      'scatter': '散点图'
+    const chartTypeNames: ChartTypeNames = {
+      bar: '柱状图',
+      line: '折线图',
+      pie: '饼图',
+      scatter: '散点图'
     };
 
     // 检查时间序列数据
@@ -763,16 +813,21 @@ export class LocalChartService {
     }
 
     // 根据数据特点生成标题
+    const safeChartType: 'bar' | 'line' | 'pie' | 'scatter' =
+      (chartType === 'bar' || chartType === 'line' || chartType === 'pie' || chartType === 'scatter')
+        ? chartType
+        : 'bar';
+
     if (recommendation?.confidence === 'high') {
       if (timeDesc) {
-        return `${timeDesc}${chartTypeNames[chartType as keyof typeof chartTypeNames]}分析`;
+        return `${timeDesc}${this.getChartTypeName(safeChartType)}分析`;
       } else {
         const mainMetric = headers[numericColumns[0]];
         const category = headers[categoryColumns[0]];
-        return `${category}${mainMetric}${chartTypeNames[chartType as keyof typeof chartTypeNames]}`;
+        return `${category}${mainMetric}${this.getChartTypeName(safeChartType)}`;
       }
     } else {
-      return `智能${chartTypeNames[chartType as keyof typeof chartTypeNames]}`;
+      return `智能${this.getChartTypeName(safeChartType)}`;
     }
   }
 
@@ -814,8 +869,8 @@ export class LocalChartService {
   /**
    * 获取主题配置
    */
-  private getThemeConfig(theme: 'light' | 'dark' | 'blue') {
-    const themes = {
+  private getThemeConfig(theme: 'light' | 'dark' | 'blue'): ChartTheme {
+    const themes: Record<string, ChartTheme> = {
       'light': {
         backgroundColor: '#FFFFFF',
         textColor: '#333333',
@@ -836,7 +891,13 @@ export class LocalChartService {
       }
     };
 
-    return themes[theme];
+    if (theme === 'light') {
+      return themes.light;
+    } else if (theme === 'dark') {
+      return themes.dark;
+    } else {
+      return themes.blue;
+    }
   }
 
   /**
@@ -983,16 +1044,22 @@ export class LocalChartService {
 
       // 聚合数据
       const aggregatedData = new Map<string, number>();
-      rows.forEach(row => {
+      for (const row of rows) {
         const category = row[categoryCol];
         const value = Number(row[numericCol]) || 0;
         aggregatedData.set(category, (aggregatedData.get(category) || 0) + value);
-      });
+      }
 
-      const pieData = Array.from(aggregatedData.entries()).map(([name, value]) => ({
-        name,
-        value
-      }));
+      const pieData: Array<{name: string, value: number}> = [];
+      for (const entry of aggregatedData.entries()) {
+        const name = entry[0];
+        const value = entry[1];
+        const dataItem: {name: string, value: number} = {
+          name: name,
+          value: value
+        };
+        pieData.push(dataItem);
+      }
 
       config.series.push({
         name: data.headers[numericCol],
@@ -1064,12 +1131,11 @@ export class LocalChartService {
     }
 
       const pieSeriesArray: Object[] = [];
-      const series = eChartsOption.get('series') as Record<string, Object>[];
+      const series = eChartsOption.get('series') as Object[];
       if (series.length > 0) {
         const pieSeriesConfig = new PieSeriesConfig();
-        pieSeriesConfig.name = (series[0] as Record<string, Object>).name as string;
+        // Simplify the series data access to avoid type casting
         pieSeriesConfig.type = 'pie';
-        pieSeriesConfig.data = (series[0] as Record<string, Object>).data;
         pieSeriesConfig.radius = '60%';
         pieSeriesConfig.center = ['50%', '50%'];
         pieSeriesArray.push(pieSeriesConfig);
@@ -1180,15 +1246,22 @@ export class LocalChartService {
   private exportToJSON(data: LocalChartData): string {
     const headers = data.headers;
     const rows = data.rows;
-    const jsonData: Record<string, Object>[] = [];
+    // For JSON export, create simple string representations
+    const jsonLines: string[] = [];
+    jsonLines.push('[');
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const obj: Record<string, Object> = {};
+      let jsonLine = '  {';
       for (let j = 0; j < headers.length; j++) {
-        obj[headers[j]] = row[j];
+        if (j > 0) jsonLine += ', ';
+        jsonLine += `"${headers[j]}": "${row[j]}"`;
       }
-      jsonData.push(obj);
+      jsonLine += '}';
+      if (i < rows.length - 1) jsonLine += ',';
+      jsonLines.push(jsonLine);
     }
+    jsonLines.push(']');
+    const jsonData = jsonLines.join('\n');
 
     return JSON.stringify(jsonData, null, 2);
   }
@@ -1196,11 +1269,7 @@ export class LocalChartService {
   /**
    * 获取缓存统计信息
    */
-  public getCacheStats(): {
-    totalEntries: number;
-    hitRate: number;
-    totalMemoryUsage: number;
-  } {
+  public getCacheStats(): CacheStatsResult {
     return this.cacheManager.getStats();
   }
 
@@ -1215,20 +1284,28 @@ export class LocalChartService {
    * 预热缓存
    */
   public async warmupCache(): Promise<void> {
-    const predefinedConfigs: Array<{key: string, data: LocalChartData}> = [
-      {
-        key: this.cacheManager.generateCacheKey(this.generateSampleData('sales'), 'bar'),
-        data: this.generateSampleData('sales')
-      },
-      {
-        key: this.cacheManager.generateCacheKey(this.generateSampleData('weather'), 'line'),
-        data: this.generateSampleData('weather')
-      },
-      {
-        key: this.cacheManager.generateCacheKey(this.generateSampleData('students'), 'pie'),
-        data: this.generateSampleData('students')
-      }
-    ];
+    const predefinedConfigs: PredefinedConfig[] = [];
+
+    // 添加销售数据配置
+    const salesConfig: PredefinedConfig = {
+      key: this.cacheManager.generateCacheKey(this.generateSampleData('sales'), 'bar'),
+      data: this.generateSampleData('sales')
+    };
+    predefinedConfigs.push(salesConfig);
+
+    // 添加天气数据配置
+    const weatherConfig: PredefinedConfig = {
+      key: this.cacheManager.generateCacheKey(this.generateSampleData('weather'), 'line'),
+      data: this.generateSampleData('weather')
+    };
+    predefinedConfigs.push(weatherConfig);
+
+    // 添加学生数据配置
+    const studentsConfig: PredefinedConfig = {
+      key: this.cacheManager.generateCacheKey(this.generateSampleData('students'), 'pie'),
+      data: this.generateSampleData('students')
+    };
+    predefinedConfigs.push(studentsConfig);
 
     await this.cacheManager.warmup(predefinedConfigs);
     console.info('[LocalChartService] 缓存预热完成');
@@ -1237,14 +1314,7 @@ export class LocalChartService {
   /**
    * 设置缓存配置
    */
-  public setCacheConfig(config: {
-    maxSize?: number;
-    maxMemoryMB?: number;
-    ttlMinutes?: number;
-    compressionEnabled?: boolean;
-    persistentCache?: boolean;
-    cleanupInterval?: number;
-  }): void {
+  public setCacheConfig(config: CacheConfigParams): void {
     if (this.cacheManager.config) {
       // Update the config using the correct property mapping
       if (config.maxSize !== undefined) this.cacheManager.config.maxSize = config.maxSize;
