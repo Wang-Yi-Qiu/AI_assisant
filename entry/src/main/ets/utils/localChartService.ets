@@ -62,6 +62,28 @@ interface CustomOptions {
   responsive?: boolean;
 }
 
+// 元数据接口
+interface DataMetadata {
+  title?: string;
+  description?: string;
+  tags?: string[];
+  createdAt?: string;
+}
+
+// 数据质量评估结果接口
+interface DataQualityResult {
+  completeness: number;
+  categoryUniqueness: number;
+  dataVariance: number;
+  rowDensity: number;
+}
+
+// 饼图数据项接口
+interface PieDataItem {
+  name: string;
+  value: number;
+}
+
 
 // 图表数据类型定义
 export interface LocalChartData {
@@ -71,12 +93,7 @@ export interface LocalChartData {
   categoryColumns: number[];
   fileName?: string;
   data?: string[][];
-  metadata?: {
-    title?: string;
-    description?: string;
-    tags?: string[];
-    createdAt?: string;
-  };
+  metadata?: DataMetadata;
 }
 
 /**
@@ -591,12 +608,7 @@ export class LocalChartService {
   /**
    * 评估数据质量
    */
-  private assessDataQuality(data: LocalChartData): {
-    completeness: number;
-    categoryUniqueness: number;
-    dataVariance: number;
-    rowDensity: number;
-  } {
+  private assessDataQuality(data: LocalChartData): DataQualityResult {
     const rows = data.rows;
     const headers = data.headers;
     const numericColumns = data.numericColumns;
@@ -637,12 +649,13 @@ export class LocalChartService {
     const optimalRows = 50; // 理想的数据行数
     const rowDensity = Math.min(rows.length / optimalRows, 1);
 
-    return {
-      completeness,
-      categoryUniqueness,
-      dataVariance,
-      rowDensity
+    const result: DataQualityResult = {
+      completeness: completeness,
+      categoryUniqueness: categoryUniqueness,
+      dataVariance: dataVariance,
+      rowDensity: rowDensity
     };
+    return result;
   }
 
   /**
@@ -1047,14 +1060,15 @@ export class LocalChartService {
       for (const row of rows) {
         const category = row[categoryCol];
         const value = Number(row[numericCol]) || 0;
-        aggregatedData.set(category, (aggregatedData.get(category) || 0) + value);
+        const currentValue = aggregatedData.get(category);
+        aggregatedData.set(category, (currentValue ? currentValue : 0) + value);
       }
 
-      const pieData: Array<{name: string, value: number}> = [];
+      const pieData: PieDataItem[] = [];
       for (const entry of aggregatedData.entries()) {
         const name = entry[0];
         const value = entry[1];
-        const dataItem: {name: string, value: number} = {
+        const dataItem: PieDataItem = {
           name: name,
           value: value
         };

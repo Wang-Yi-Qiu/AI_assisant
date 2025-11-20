@@ -525,13 +525,15 @@ export class ChartCacheManager {
       // 只保存缓存键和元数据，不保存实际数据
       const cacheMetadata: Record<string, any> = {};
 
-      for (const [key, entry] of this.cache.entries()) {
+      for (const entry of this.cache.entries()) {
+        const key = entry[0];
+        const cacheEntry = entry[1];
         cacheMetadata[key] = {
-          timestamp: entry.timestamp,
-          expiryTime: entry.expiryTime,
-          hitCount: entry.hitCount,
-          dataSize: entry.dataSize,
-          metadata: entry.metadata
+          timestamp: cacheEntry.timestamp,
+          expiryTime: cacheEntry.expiryTime,
+          hitCount: cacheEntry.hitCount,
+          dataSize: cacheEntry.dataSize,
+          metadata: cacheEntry.metadata
         };
       }
 
@@ -553,13 +555,13 @@ export class ChartCacheManager {
       const statsStr = await storage.getString('chart_cache_stats');
 
       if (metadataStr) {
-        const metadata = JSON.parse(metadataStr);
+        const metadata: Record<string, CacheEntry> = JSON.parse(metadataStr);
         // 注意：这里只加载元数据，实际数据需要重新计算
-        console.log(`[ChartCacheManager] 从存储加载了 ${Object.keys(metadata).length} 个缓存元数据`);
+        console.log(`[ChartCacheManager] 从存储加载了缓存元数据`);
       }
 
       if (statsStr) {
-        const stats = JSON.parse(statsStr);
+        const stats: CacheStats = JSON.parse(statsStr);
         this.hitCount = stats.hitCount || 0;
         this.missCount = stats.missCount || 0;
         this.evictionCount = stats.evictions || 0;
