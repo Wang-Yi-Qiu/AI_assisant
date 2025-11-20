@@ -5,9 +5,19 @@
  */
 
 import { ChartCacheManager } from '../cache/ChartCacheManager';
-import picker from '@ohos/file.picker';
+import { picker } from '@kit.CoreFileKit';
 import fs from '@ohos.file.fs';
 import { util } from '@kit.ArkTS';
+
+// 主题配置类型
+interface ChartTheme {
+  colors: string[];
+  backgroundColor: string;
+  textColor: string;
+  gridColor?: string;
+  highlightColor?: string;
+  primaryColor?: string;
+}
 
 // 图表数据类型定义
 export interface LocalChartData {
@@ -670,7 +680,7 @@ export class LocalChartService {
     width?: number;
     height?: number;
     responsive?: boolean;
-  }): object {
+  }): LocalChartConfig {
     const headers = data.headers;
     const rows = data.rows;
     const numericColumns = data.numericColumns;
@@ -914,7 +924,7 @@ export class LocalChartService {
   /**
    * 生成柱状图系列
    */
-  private generateBarSeries(config: LocalChartConfig, data: LocalChartData, theme: any): void {
+  private generateBarSeries(config: LocalChartConfig, data: LocalChartData, theme: ChartTheme): void {
     const rows = data.rows;
     const numericColumns = data.numericColumns;
     const categoryColumns = data.categoryColumns;
@@ -938,7 +948,7 @@ export class LocalChartService {
   /**
    * 生成折线图系列
    */
-  private generateLineSeries(config: LocalChartConfig, data: LocalChartData, theme: any, enableAnimation: boolean = true): void {
+  private generateLineSeries(config: LocalChartConfig, data: LocalChartData, theme: ChartTheme, enableAnimation: boolean = true): void {
     const rows = data.rows;
     const numericColumns = data.numericColumns;
     const categoryColumns = data.categoryColumns;
@@ -962,7 +972,7 @@ export class LocalChartService {
   /**
    * 生成饼图系列
    */
-  private generatePieSeries(config: LocalChartConfig, data: LocalChartData, theme: any, showDataLabels: boolean = false): void {
+  private generatePieSeries(config: LocalChartConfig, data: LocalChartData, theme: ChartTheme, showDataLabels: boolean = false): void {
     const rows = data.rows;
     const numericColumns = data.numericColumns;
     const categoryColumns = data.categoryColumns;
@@ -996,7 +1006,7 @@ export class LocalChartService {
   /**
    * 生成散点图系列
    */
-  private generateScatterSeries(config: LocalChartConfig, data: LocalChartData, theme: any): void {
+  private generateScatterSeries(config: LocalChartConfig, data: LocalChartData, theme: ChartTheme): void {
     const rows = data.rows;
     const numericColumns = data.numericColumns;
 
@@ -1021,7 +1031,7 @@ export class LocalChartService {
   /**
    * 增强的ECharts配置转换（支持主题）
    */
-  public toEChartsOption(localConfig: LocalChartConfig, theme?: any): Object {
+  public toEChartsOption(localConfig: LocalChartConfig, theme?: ChartTheme): Object {
     class TitleConfig {
       text: string = '';
       left: string = '';
@@ -1186,7 +1196,11 @@ export class LocalChartService {
   /**
    * 获取缓存统计信息
    */
-  public getCacheStats(): any {
+  public getCacheStats(): {
+    totalEntries: number;
+    hitRate: number;
+    totalMemoryUsage: number;
+  } {
     return this.cacheManager.getStats();
   }
 
@@ -1201,7 +1215,7 @@ export class LocalChartService {
    * 预热缓存
    */
   public async warmupCache(): Promise<void> {
-    const predefinedConfigs = [
+    const predefinedConfigs: Array<{key: string, data: LocalChartData}> = [
       {
         key: this.cacheManager.generateCacheKey(this.generateSampleData('sales'), 'bar'),
         data: this.generateSampleData('sales')
@@ -1225,113 +1239,25 @@ export class LocalChartService {
    */
   public setCacheConfig(config: {
     maxSize?: number;
-    maxMemorySize?: number;
-    defaultTtl?: number;
+    maxMemoryMB?: number;
+    ttlMinutes?: number;
     compressionEnabled?: boolean;
     persistentCache?: boolean;
     cleanupInterval?: number;
   }): void {
     if (this.cacheManager.config) {
-      Object.assign(this.cacheManager.config, config);
+      // Update the config using the correct property mapping
+      if (config.maxSize !== undefined) this.cacheManager.config.maxSize = config.maxSize;
+      if (config.maxMemoryMB !== undefined) this.cacheManager.config.maxMemorySize = config.maxMemoryMB * 1024 * 1024; // Convert MB to bytes
+      if (config.ttlMinutes !== undefined) this.cacheManager.config.defaultTtl = config.ttlMinutes * 60 * 1000; // Convert minutes to milliseconds
+      if (config.cleanupInterval !== undefined) this.cacheManager.config.cleanupInterval = config.cleanupInterval;
+      if (config.compressionEnabled !== undefined) this.cacheManager.config.compressionEnabled = config.compressionEnabled;
+      if (config.persistentCache !== undefined) this.cacheManager.config.persistentCache = config.persistentCache;
       console.info('[LocalChartService] 缓存配置已更新');
     }
   }
 
-  /**
-   * 生成示例数据
-   */
-  public generateSampleData(dataType: 'sales' | 'weather' | 'students'): LocalChartData {
-    switch (dataType) {
-      case 'sales':
-        return {
-          headers: ['月份', '销售额', '目标额'],
-          rows: [
-            ['1月', '12000', '10000'],
-            ['2月', '15000', '10000'],
-            ['3月', '18000', '12000'],
-            ['4月', '14000', '12000'],
-            ['5月', '20000', '13000'],
-            ['6月', '22000', '13000']
-          ],
-          numericColumns: [1, 2],
-          categoryColumns: [0],
-          fileName: 'sales_data.csv',
-          metadata: {
-            title: '销售数据',
-            description: '月度销售数据分析',
-            tags: ['销售', '数据'],
-            createdAt: new Date().toISOString()
-          }
-        };
-
-      case 'weather':
-        return {
-          headers: ['日期', '温度', '湿度'],
-          rows: [
-            ['周一', '22', '65'],
-            ['周二', '24', '70'],
-            ['周三', '19', '80'],
-            ['周四', '25', '60'],
-            ['周五', '27', '55'],
-            ['周六', '23', '75'],
-            ['周日', '21', '85']
-          ],
-          numericColumns: [1, 2],
-          categoryColumns: [0],
-          fileName: 'weather_data.csv',
-          metadata: {
-            title: '天气数据',
-            description: '一周天气变化趋势',
-            tags: ['天气', '温度'],
-            createdAt: new Date().toISOString()
-          }
-        };
-
-      case 'students':
-        return {
-          headers: ['姓名', '语文', '数学', '英语'],
-          rows: [
-            ['张三', '85', '92', '78'],
-            ['李四', '92', '88', '95'],
-            ['王五', '78', '85', '82'],
-            ['赵六', '88', '79', '90'],
-            ['钱七', '95', '94', '87'],
-            ['孙八', '82', '86', '83']
-          ],
-          numericColumns: [1, 2, 3],
-          categoryColumns: [0],
-          fileName: 'students_scores.csv',
-          metadata: {
-            title: '学生成绩',
-            description: '班级学生成绩统计',
-            tags: ['教育', '成绩'],
-            createdAt: new Date().toISOString()
-          }
-        };
-
-      default:
-        return {
-          headers: ['X', 'Y'],
-          rows: [
-            ['1', '10'],
-            ['2', '20'],
-            ['3', '15'],
-            ['4', '25'],
-            ['5', '30']
-          ],
-          numericColumns: [0, 1],
-          categoryColumns: [],
-          fileName: 'default_data.csv',
-          metadata: {
-            title: '默认数据',
-            description: '示例数据集',
-            tags: ['示例'],
-            createdAt: new Date().toISOString()
-          }
-        };
-    }
-  }
-
+  
   /**
    * 销毁服务
    */

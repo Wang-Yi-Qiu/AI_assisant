@@ -57,7 +57,7 @@ export interface CacheStats {
 export class ChartCacheManager {
   private static instance: ChartCacheManager;
   private cache: Map<string, CacheEntry>;
-  private config: CacheConfig;
+  public config: CacheConfig;
   private memoryUsage: number;
   private hitCount: number = 0;
   private missCount: number = 0;
@@ -453,7 +453,7 @@ export class ChartCacheManager {
    * 计算数据大小
    */
   private calculateDataSize(data: any): number {
-    return new Blob([JSON.stringify(data)]).size;
+    return JSON.stringify(data).length * 2; // Approximate size in bytes (UTF-16)
   }
 
   /**
@@ -535,8 +535,8 @@ export class ChartCacheManager {
         };
       }
 
-      await storage.setValue('chart_cache_metadata', JSON.stringify(cacheMetadata));
-      await storage.setValue('chart_cache_stats', JSON.stringify(this.getStats()));
+      await storage.saveString('chart_cache_metadata', JSON.stringify(cacheMetadata));
+      await storage.saveString('chart_cache_stats', JSON.stringify(this.getStats()));
     } catch (error) {
       console.error('[ChartCacheManager] 保存到存储失败:', error);
     }
@@ -549,8 +549,8 @@ export class ChartCacheManager {
     try {
       const storage = getStorageInstance();
 
-      const metadataStr = await storage.getValue('chart_cache_metadata');
-      const statsStr = await storage.getValue('chart_cache_stats');
+      const metadataStr = await storage.getString('chart_cache_metadata');
+      const statsStr = await storage.getString('chart_cache_stats');
 
       if (metadataStr) {
         const metadata = JSON.parse(metadataStr);

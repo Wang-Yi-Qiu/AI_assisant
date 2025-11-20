@@ -35,10 +35,10 @@ export default class PomodoroFormAbility extends FormExtensionAbility {
       const initialData = this.formManager.createFormData ?
         this.formManager.createFormData() : this.getDefaultCardData();
 
-      return Promise.resolve(new formBindingData(initialData));
+      return Promise.resolve({ data: initialData });
     } catch (error) {
       hilog.error(PomodoroFormAbility.DOMAIN, PomodoroFormAbility.TAG, `onCreate error: ${error}`);
-      return Promise.resolve(new formBindingData(this.getDefaultCardData()));
+      return Promise.resolve({ data: this.getDefaultCardData() });
     }
   }
 

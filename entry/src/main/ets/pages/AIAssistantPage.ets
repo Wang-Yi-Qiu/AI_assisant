@@ -93,7 +93,7 @@ export struct AIAssistantPage {
               fileName: chartData.fileName,
               headers: chartData.headers,
               data: chartData.data,
-              rowCount: chartData.data.length,
+              rowCount: chartData.data?.length || 0,
               columnCount: chartData.headers.length
             }
           }
