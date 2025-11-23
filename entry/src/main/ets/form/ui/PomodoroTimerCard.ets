@@ -5,7 +5,7 @@
 @Component
 @Entry
 export default struct PomodoroTimerCard {
-  formData: Record<string, any> = {};
+  formData: Record<string, Object> = {};
   currentState: string = 'idle';
   formattedTime: string = '25:00';
   progress: number = 0;
@@ -17,7 +17,7 @@ export default struct PomodoroTimerCard {
   stateColor: string = '#9E9E9E';
   actionButtonText: string = '开始专注';
   secondaryActionButtonText: string = '';
-  formInfo: any = {};
+  formInfo: Object = {};
 
   aboutToAppear() {
     console.info('[PomodoroTimerCard] Component about to appear');
@@ -30,7 +30,7 @@ export default struct PomodoroTimerCard {
   private updateFormData(): void {
     try {
       if (this.formInfo.formBindingData) {
-        const data = this.formInfo.formBindingData.data || {};
+        const data: Record<string, Object> = (this.formInfo.formBindingData as Record<string, Object>).data || {};
         console.info('[PomodoroTimerCard] Updating form data:', JSON.stringify(data));
 
         this.formData = data;
@@ -73,7 +73,7 @@ export default struct PomodoroTimerCard {
   /**
    * 发送卡片事件
    */
-  private sendFormEvent(action: string, parameters?: Record<string, any>): void {
+  private sendFormEvent(action: string, parameters?: Record<string, Object>): void {
     try {
       console.info('[PomodoroTimerCard] Sending form event:', action);
       // 卡片事件通过FormAbility处理，这里简化实现

@@ -11,7 +11,7 @@ import { generateUUID } from '../utils/uuid';
  */
 export interface CacheEntry {
   key: string;
-  data: any;
+  data: Object;
   timestamp: number;
   expiryTime: number;
   hitCount: number;
@@ -35,6 +35,35 @@ export interface CacheConfig {
   compressionEnabled: boolean; // 是否启用压缩
   persistentCache: boolean;    // 是否启用持久化缓存
   cleanupInterval: number;    // 清理间隔（毫秒）
+}
+
+/**
+ * 预热配置接口
+ */
+interface WarmupConfig {
+  key: string;
+  data: Object;
+}
+
+/**
+ * 批量条目接口
+ */
+interface BatchEntry {
+  key: string;
+  data: Object;
+  ttl?: number;
+}
+
+/**
+ * 数据特征接口
+ */
+interface DataFeatures {
+  type: string;
+  hash: string;
+  rowCount?: number;
+  columnCount?: number;
+  numericColumns?: number;
+  categoryColumns?: number;
 }
 
 /**
@@ -102,9 +131,9 @@ export class ChartCacheManager {
    * 生成缓存键
    */
   public generateCacheKey(
-    data: any,
+    data: Object,
     chartType?: string,
-    options?: any
+    options?: Object
   ): string {
     try {
       // 提取数据特征用于生成唯一键
@@ -129,7 +158,7 @@ export class ChartCacheManager {
   /**
    * 获取缓存条目
    */
-  public get(key: string): any | null {
+  public get(key: string): Object | null {
     const entry = this.cache.get(key);
 
     if (!entry) {
@@ -158,9 +187,9 @@ export class ChartCacheManager {
    */
   public set(
     key: string,
-    data: any,
+    data: Object,
     ttl: number = this.config.defaultTtl,
-    metadata?: any
+    metadata?: Object
   ): void {
     try {
       // 检查是否需要清理空间
@@ -268,7 +297,7 @@ export class ChartCacheManager {
   /**
    * 预热缓存
    */
-  public async warmup(predefinedConfigs: Array<{key: string, data: any}>): Promise<void> {
+  public async warmup(predefinedConfigs: WarmupConfig[]): Promise<void> {
     console.info(`[ChartCacheManager] 开始预热缓存，预定义配置数: ${predefinedConfigs.length}`);
 
     for (const config of predefinedConfigs) {
@@ -281,8 +310,8 @@ export class ChartCacheManager {
   /**
    * 批量获取缓存
    */
-  public getBatch(keys: string[]): Map<string, any> {
-    const results = new Map<string, any>();
+  public getBatch(keys: string[]): Map<string, Object> {
+    const results = new Map<string, Object>();
 
     for (const key of keys) {
       const data = this.get(key);
@@ -297,7 +326,7 @@ export class ChartCacheManager {
   /**
    * 批量设置缓存
    */
-  public setBatch(entries: Array<{key: string, data: any, ttl?: number}>): void {
+  public setBatch(entries: BatchEntry[]): void {
     for (const entry of entries) {
       this.set(entry.key, entry.data, entry.ttl);
     }
@@ -362,19 +391,20 @@ export class ChartCacheManager {
   /**
    * 提取数据特征
    */
-  private extractDataFeatures(data: any): any {
+  private extractDataFeatures(data: Object): DataFeatures {
     try {
       if (!data || typeof data !== 'object') {
-        return { type: 'empty', hash: '' };
+        const result: DataFeatures = { type: 'empty', hash: '' };
+        return result;
       }
 
-      const features: any = {
+      const features: DataFeatures = {
         type: 'unknown',
+        hash: '',
         rowCount: 0,
         columnCount: 0,
         numericColumns: 0,
-        categoryColumns: 0,
-        hash: ''
+        categoryColumns: 0
       };
 
       // 分析数据结构
@@ -400,14 +430,15 @@ export class ChartCacheManager {
       return features;
     } catch (error) {
       console.error('[ChartCacheManager] 提取数据特征失败:', error);
-      return { type: 'error', hash: '' };
+      const errorResult: DataFeatures = { type: 'error', hash: '' };
+      return errorResult;
     }
   }
 
   /**
    * 压缩数据
    */
-  private compressData(data: any): any {
+  private compressData(data: Object): Object {
     if (!this.config.compressionEnabled) {
       return data;
     }
@@ -436,7 +467,7 @@ export class ChartCacheManager {
   /**
    * 解压缩数据
    */
-  private decompressData(data: any): any {
+  private decompressData(data: Object): Object {
     if (!this.config.compressionEnabled || typeof data === 'object') {
       return data;
     }
@@ -452,7 +483,7 @@ export class ChartCacheManager {
   /**
    * 计算数据大小
    */
-  private calculateDataSize(data: any): number {
+  private calculateDataSize(data: Object): number {
     return JSON.stringify(data).length * 2; // Approximate size in bytes (UTF-16)
   }
 
@@ -487,7 +518,7 @@ export class ChartCacheManager {
   /**
    * 生成备用缓存键
    */
-  private generateFallbackKey(data: any, chartType?: string): string {
+  private generateFallbackKey(data: Object, chartType?: string): string {
     const type = chartType || 'unknown';
     const timestamp = Date.now();
     const random = Math.random().toString(36).substr(2, 9);

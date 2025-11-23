@@ -144,7 +144,7 @@ export class PomodoroFormManager {
   /**
    * 创建卡片数据
    */
-  public createFormData(): Record<string, any> {
+  public createFormData(): Record<string, Object> {
     try {
       const currentState = this.pomodoroService.getCurrentState();
       const remainingTime = this.pomodoroService.getRemainingTime();
@@ -180,7 +180,7 @@ export class PomodoroFormManager {
   /**
    * 获取默认卡片数据
    */
-  private getDefaultFormData(): Record<string, any> {
+  private getDefaultFormData(): Record<string, Object> {
     return {
       formId: '',
       currentState: PomodoroState.IDLE,
@@ -264,7 +264,7 @@ export class PomodoroFormManager {
   /**
    * 处理卡片事件
    */
-  public handleFormEvent(action: string, parameters?: Record<string, any>): void {
+  public handleFormEvent(action: string, parameters?: Record<string, Object>): void {
     hilog.info(PomodoroFormManager.DOMAIN, PomodoroFormManager.TAG, `Handling form event: ${action}`);
 
     try {
