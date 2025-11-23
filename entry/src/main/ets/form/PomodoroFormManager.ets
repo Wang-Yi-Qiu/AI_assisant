@@ -4,6 +4,26 @@ import hilog from '@ohos.hilog';
 import { PomodoroTimerService, PomodoroState } from '../utils/pomodoroTimerService';
 
 /**
+ * 表单数据接口
+ */
+interface FormData {
+  formId: string;
+  currentState: string;
+  formattedTime: string;
+  progress: string;
+  totalProgress: number;
+  currentTask: string;
+  completedToday: number;
+  isRunning: boolean;
+  isPaused: boolean;
+  stateText: string;
+  stateColor: string;
+  actionButtonText: string;
+  secondaryActionButtonText: string;
+  timestamp: number;
+}
+
+/**
  * 番茄钟卡片管理器
  * 负责卡片状态管理和数据同步
  */
@@ -144,7 +164,7 @@ export class PomodoroFormManager {
   /**
    * 创建卡片数据
    */
-  public createFormData(): Record<string, Object> {
+  public createFormData(): FormData {
     try {
       const currentState = this.pomodoroService.getCurrentState();
       const remainingTime = this.pomodoroService.getRemainingTime();
@@ -180,7 +200,7 @@ export class PomodoroFormManager {
   /**
    * 获取默认卡片数据
    */
-  private getDefaultFormData(): Record<string, Object> {
+  private getDefaultFormData(): FormData {
     return {
       formId: '',
       currentState: PomodoroState.IDLE,

@@ -1,4 +1,18 @@
 /**
+ * 表单绑定数据接口
+ */
+interface FormBindingData {
+  data: Record<string, Object>;
+}
+
+/**
+ * 表单信息接口
+ */
+interface FormInfo {
+  formBindingData: FormBindingData;
+}
+
+/**
  * 番茄钟服务卡片UI组件
  * 提供桌面小卡片界面，显示计时状态和快捷操作
  */
@@ -17,7 +31,7 @@ export default struct PomodoroTimerCard {
   stateColor: string = '#9E9E9E';
   actionButtonText: string = '开始专注';
   secondaryActionButtonText: string = '';
-  formInfo: Object = {};
+  formInfo: FormInfo = {} as FormInfo;
 
   aboutToAppear() {
     console.info('[PomodoroTimerCard] Component about to appear');
@@ -30,7 +44,7 @@ export default struct PomodoroTimerCard {
   private updateFormData(): void {
     try {
       if (this.formInfo.formBindingData) {
-        const data: Record<string, Object> = (this.formInfo.formBindingData as Record<string, Object>).data || {};
+        const data: Record<string, Object> = this.formInfo.formBindingData.data || {};
         console.info('[PomodoroTimerCard] Updating form data:', JSON.stringify(data));
 
         this.formData = data;
