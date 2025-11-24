@@ -4,6 +4,8 @@
  */
 
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import http from '@ohos.net.http';
+import { getSupabaseUrl } from './supabaseClient';
 
 interface MemoryUsage {
   total: number;
@@ -59,12 +61,12 @@ export class PerformanceMonitor {
   /**
    * 收集性能指标
    */
-  private collectMetrics(): void {
+  private async collectMetrics(): Promise<void> {
     if (!this.isMonitoring) {
       return;
     }
 
-    const metrics = this.getCurrentMetrics();
+    const metrics = await this.getCurrentMetrics();
     this.addMetrics(metrics);
 
     // 每5秒收集一次
@@ -76,12 +78,14 @@ export class PerformanceMonitor {
   /**
    * 获取当前性能指标
    */
-  private getCurrentMetrics(): PerformanceMetrics {
+  private async getCurrentMetrics(): Promise<PerformanceMetrics> {
+    const networkLatency = await this.getNetworkLatency();
+    
     const metrics: PerformanceMetrics = {
       memoryUsage: this.getMemoryUsage(),
       cpuUsage: this.getCpuUsage(),
       frameRate: this.getFrameRate(),
-      networkLatency: this.getNetworkLatency(),
+      networkLatency: networkLatency,
       renderTime: this.getRenderTime()
     };
 
@@ -92,15 +96,15 @@ export class PerformanceMonitor {
    * 获取内存使用情况
    */
   private getMemoryUsage(): MemoryUsage {
-    // 这里应该使用HarmonyOS的内存API
-    // 目前使用模拟数据
-    const total = 1024 * 1024 * 1024; // 1GB
-    const used = Math.random() * total * 0.7; // 最多70%使用率
+    // TODO: 使用 @ohos.hidebug 获取真实内存信息
+    // 目前暂无公开API可直接获取当前应用精确内存，仅保留结构
+    const total = 0; 
+    const used = 0;
 
     const memoryUsage: MemoryUsage = {
       total,
       used,
-      percentage: (used / total) * 100
+      percentage: 0
     };
 
     return memoryUsage;
@@ -110,8 +114,8 @@ export class PerformanceMonitor {
    * 获取CPU使用率
    */
   private getCpuUsage(): number {
-    // 这里应该使用HarmonyOS的CPU监控API
-    return Math.random() * 30 + 10; // 10-40%之间
+    // TODO: 使用 @ohos.hidebug 获取真实CPU信息
+    return 0; 
   }
 
   /**
@@ -131,23 +135,37 @@ export class PerformanceMonitor {
     } else {
       this.lastFrameTime = now;
     }
-    return 60; // 默认60fps
+    // 如果没有足够的帧数据，返回0而不是假数据
+    return this.frameCount > 0 ? (this.frameCount * 1000) / (now - this.lastFrameTime) : 0;
   }
 
   /**
-   * 获取网络延迟
+   * 获取网络延迟 (Ping Supabase)
    */
-  private getNetworkLatency(): number {
-    // 这里应该实际测量网络延迟
-    return Math.random() * 100 + 50; // 50-150ms
+  private async getNetworkLatency(): Promise<number> {
+    const start = Date.now();
+    try {
+      const url = getSupabaseUrl();
+      const httpRequest = http.createHttp();
+      await httpRequest.request(url, {
+        method: http.RequestMethod.HEAD,
+        connectTimeout: 3000,
+        readTimeout: 3000
+      });
+      httpRequest.destroy();
+      return Date.now() - start;
+    } catch (e) {
+      // 网络不可达
+      return -1;
+    }
   }
 
   /**
    * 获取渲染时间
    */
   private getRenderTime(): number {
-    // 这里应该测量实际的渲染时间
-    return Math.random() * 16 + 8; // 8-24ms (对应60fps)
+    // 无法直接获取渲染管线时间，返回0
+    return 0;
   }
 
   /**
@@ -169,34 +187,10 @@ export class PerformanceMonitor {
    * 检查性能警告
    */
   private checkPerformanceWarnings(metrics: PerformanceMetrics): void {
-    // 内存使用率过高警告
-    if (metrics.memoryUsage.percentage > 80) {
-      hilog.warn(0x0000, 'PerformanceMonitor',
-        `内存使用率过高: ${metrics.memoryUsage.percentage.toFixed(1)}%`);
-    }
-
-    // CPU使用率过高警告
-    if (metrics.cpuUsage > 70) {
-      hilog.warn(0x0000, 'PerformanceMonitor',
-        `CPU使用率过高: ${metrics.cpuUsage.toFixed(1)}%`);
-    }
-
-    // 帧率过低警告
-    if (metrics.frameRate < 30) {
-      hilog.warn(0x0000, 'PerformanceMonitor',
-        `帧率过低: ${metrics.frameRate}fps`);
-    }
-
     // 网络延迟过高警告
     if (metrics.networkLatency > 1000) {
       hilog.warn(0x0000, 'PerformanceMonitor',
         `网络延迟过高: ${metrics.networkLatency.toFixed(0)}ms`);
-    }
-
-    // 渲染时间过长警告
-    if (metrics.renderTime > 33) { // 超过30fps对应的渲染时间
-      hilog.warn(0x0000, 'PerformanceMonitor',
-        `渲染时间过长: ${metrics.renderTime.toFixed(1)}ms`);
     }
   }
 
@@ -214,7 +208,7 @@ export class PerformanceMonitor {
     let frameRateTotal = 0;
     let networkLatencyTotal = 0;
     let renderTimeTotal = 0;
-    let memoryTotal = this.metrics[0].memoryUsage.total;
+    let validNetworkCount = 0;
 
     // 使用循环替代reduce
     for (let i = 0; i < this.metrics.length; i++) {
@@ -223,20 +217,25 @@ export class PerformanceMonitor {
       memoryPercentageTotal += metrics.memoryUsage.percentage;
       cpuUsageTotal += metrics.cpuUsage;
       frameRateTotal += metrics.frameRate;
-      networkLatencyTotal += metrics.networkLatency;
+      
+      if (metrics.networkLatency >= 0) {
+        networkLatencyTotal += metrics.networkLatency;
+        validNetworkCount++;
+      }
+      
       renderTimeTotal += metrics.renderTime;
     }
 
     const count = this.metrics.length;
     const avgMetrics: PerformanceMetrics = {
       memoryUsage: {
-        total: memoryTotal,
+        total: 0,
         used: memoryUsedTotal / count,
         percentage: memoryPercentageTotal / count
       },
       cpuUsage: cpuUsageTotal / count,
       frameRate: frameRateTotal / count,
-      networkLatency: networkLatencyTotal / count,
+      networkLatency: validNetworkCount > 0 ? networkLatencyTotal / validNetworkCount : -1,
       renderTime: renderTimeTotal / count
     };
 
@@ -273,14 +272,14 @@ export class PerformanceMonitor {
 - 内存使用: ${latest?.memoryUsage.percentage.toFixed(1)}%
 - CPU使用: ${latest?.cpuUsage.toFixed(1)}%
 - 帧率: ${latest?.frameRate.toFixed(0)}fps
-- 网络延迟: ${latest?.networkLatency.toFixed(0)}ms
+- 网络延迟: ${latest?.networkLatency === -1 ? '超时/不可达' : latest?.networkLatency.toFixed(0) + 'ms'}
 - 渲染时间: ${latest?.renderTime.toFixed(1)}ms
 
 平均指标:
 - 内存使用: ${average?.memoryUsage.percentage.toFixed(1)}%
 - CPU使用: ${average?.cpuUsage.toFixed(1)}%
 - 帧率: ${average?.frameRate.toFixed(0)}fps
-- 网络延迟: ${average?.networkLatency.toFixed(0)}ms
+- 网络延迟: ${average?.networkLatency === -1 ? '超时/不可达' : average?.networkLatency.toFixed(0) + 'ms'}
 - 渲染时间: ${average?.renderTime.toFixed(1)}ms
 
 监控状态: ${this.isMonitoring ? '监控中' : '已停止'}
